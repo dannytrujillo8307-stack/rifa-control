@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Control de Rifa 1000</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+/* Premium design system */
+:root {
+    --bg-dark: #0f172a;
+    --bg-card: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    
+    --color-primary: #6366f1; /* Indigo */
+    --color-primary-hover: #4f46e5;
+    
+    /* Status Colors */
+    --color-disp: #10b981; /* Emerald Green */
+    --color-pagado: #f43f5e; /* Rose / Red */
+    --color-separado: #f59e0b; /* Amber */
+    
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+.app-container {
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 80px; /* space for nav */
+}
+
+/* Header */
+.app-header {
+    background: var(--bg-card);
+    padding: 24px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.brand i {
+    font-size: 32px;
+    color: var(--color-primary);
+}
+.brand h1 {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.stats-summary {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.stat-pill {
+    background: rgba(255,255,255,0.05);
+    padding: 8px 14px;
+    border-radius: 99px;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.stat-pill.disponible .dot { background: var(--color-disp); box-shadow: 0 0 8px var(--color-disp); }
+.stat-pill.vendido .dot { background: var(--color-pagado); box-shadow: 0 0 8px var(--color-pagado);}
+.stat-pill.separado .dot { background: var(--color-separado); box-shadow: 0 0 8px var(--color-separado);}
+
+/* Main Area */
+.content-area {
+    flex: 1;
+    padding: 24px 20px;
+}
+
+.view-section {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+.view-section.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.section-header {
+    margin-bottom: 24px;
+}
+.section-header h2 {
+    font-size: 22px;
+    margin-bottom: 6px;
+    font-weight: 700;
+}
+.section-header p {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* Dashboard Grid */
+.grid-controls {
+    margin-bottom: 20px;
+}
+.grid-controls input {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid #334155;
+    color: white;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    font-size: 16px;
+}
+.grid-controls input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.numbers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+    gap: 10px;
+}
+
+.num-card {
+    aspect-ratio: 1;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+.num-card:hover {
+    transform: scale(1.1);
+    z-index: 2;
+}
+
+.num-card.disp {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--color-disp);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.num-card.pagado {
+    background-color: var(--color-pagado);
+    color: white;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4);
+}
+.num-card.separado {
+    background-color: var(--color-separado);
+    color: white;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+/* Forms */
+.glass-form {
+    background: var(--bg-card);
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.form-group label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+.form-group input, .form-group select {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: white;
+    padding: 14px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-family: inherit;
+    transition: border 0.2s;
+}
+.form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+}
+
+.btn-primary {
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    padding: 16px;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+    transition: background 0.2s, transform 0.1s;
+}
+.btn-primary:hover {
+    background: var(--color-primary-hover);
+}
+.btn-primary:active {
+    transform: scale(0.98);
+}
+.form-note {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: -10px;
+}
+
+/* Clientes & Filters */
+.filter-controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.search-box {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.search-box i {
+    position: absolute;
+    left: 14px;
+    color: var(--text-muted);
+    font-size: 20px;
+}
+.search-box input {
+    width: 100%;
+    padding: 14px 14px 14px 44px;
+    background: var(--bg-card);
+    border: 1px solid #334155;
+    border-radius: var(--radius-md);
+    color: white;
+    font-size: 15px;
+}
+.search-box input:focus {
+    outline:none;
+    border-color: var(--color-primary);
+}
+.filter-select {
+    background: var(--bg-card);
+    border: 1px solid #334155;
+    color: white;
+    border-radius: var(--radius-md);
+    padding: 0 16px;
+    outline: none;
+    font-weight: 500;
+}
+
+.clients-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.client-card {
+    background: var(--bg-card);
+    padding: 20px;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255,255,255,0.05);
+    position: relative;
+    transition: transform 0.2s;
+}
+.client-card:hover {
+    transform: translateY(-2px);
+}
+.client-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+.client-header h4 {
+    font-size: 18px;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+.client-header p {
+    color: var(--text-muted);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-chip {
+    padding: 6px 12px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.status-chip.pagado {
+    background: rgba(244, 63, 94, 0.15);
+    color: var(--color-pagado);
+}
+.status-chip.separado {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--color-separado);
+}
+
+.client-nums {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-right: 220px; /* space for the 4 action buttons */
+}
+.badge {
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 15px;
+}
+.badge.pagado {
+    background: var(--color-pagado);
+    color: white;
+}
+.badge.separado {
+    background: var(--color-separado);
+    color: white;
+}
+
+.btn-delete {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(244, 63, 94, 0.1);
+    color: var(--color-pagado);
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 20px;
+}
+.btn-delete:hover {
+    background: var(--color-pagado);
+    color: white;
+}
+
+
+/* Navigation Bottom */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(30, 41, 59, 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    justify-content: space-around;
+    padding: 12px 0;
+    z-index: 50;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+.nav-item {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    flex: 1;
+    transition: all 0.2s;
+}
+.nav-item i {
+    font-size: 26px;
+}
+.nav-item span {
+    font-size: 13px;
+    font-weight: 500;
+}
+.nav-item.active {
+    color: var(--color-primary);
+}
+.nav-item.active i {
+    fill: var(--color-primary);
+    font-weight: 700;
+}
+
+/* Modals */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+.modal-overlay.show {
+    opacity: 1;
+    pointer-events: all;
+}
+.modal-content {
+    background: var(--bg-card);
+    padding: 32px 24px;
+    border-radius: var(--radius-lg);
+    border: 1px solid rgba(255,255,255,0.05);
+    text-align: center;
+    width: 90%;
+    max-width: 400px;
+    transform: translateY(30px);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+.modal-overlay.show .modal-content {
+    transform: translateY(0);
+}
+.modal-icon {
+    font-size: 72px;
+    color: var(--color-pagado);
+    margin-bottom: 20px;
+}
+.modal-content h3 {
+    font-size: 24px;
+    margin-bottom: 12px;
+    font-weight: 700;
+}
+.modal-content p {
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+.btn-secondary {
+    background: #334155;
+    color: white;
+    border: none;
+    padding: 16px 24px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    font-size: 16px;
+    transition: background 0.2s;
+}
+.btn-secondary:hover {
+    background: #475569;
+}
+    </style>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="brand">
+                    <i class="ph ph-ticket"></i>
+                    <h1>RifaControl</h1>
+                </div>
+                <button class="btn-secondary" style="width: auto; padding: 8px 12px; font-size: 14px; background: var(--bg-body); border: 1px solid rgba(255,255,255,0.1);" onclick="document.getElementById('winner-modal').classList.add('show')">
+                    <i class="ph ph-flag-checkered"></i> Finalizar Rifa
+                </button>
+            </div>
+            <!-- Stats Summary -->
+            <div class="stats-summary">
+                <div class="stat-pill disponible">
+                    <span class="dot"></span> <span id="stat-disp">1000</span> Libres
+                </div>
+                <div class="stat-pill vendido">
+                    <span class="dot"></span> <span id="stat-vend">0</span> Vendidos
+                </div>
+                <div class="stat-pill separado">
+                    <span class="dot"></span> <span id="stat-sep">0</span> Separados
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="content-area">
+            
+            <!-- SECTION 1: DASHBOARD -->
+            <section id="view-dashboard" class="view-section active">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
+                    <div>
+                        <h2>Panel de Números</h2>
+                        <p id="panel-subtitle">Del 000 al 999</p>
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <label for="cover-image" style="font-size: 12px; color: var(--text-muted); font-weight: 600;">IMAGEN/PORTADA</label>
+                            <input type="file" id="cover-image" accept="image/*" style="max-width: 220px; font-size: 13px; color: white; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 6px;">
+                        </div>
+                        <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: #ef4444; color: white; height: 100%; align-self: flex-end;" onclick="exportPDF()">
+                            <i class="ph ph-file-pdf"></i> Exportar PDF
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="raffle-info-banner" style="display: flex; gap: 20px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
+                    <div id="banner-image-container" style="width: 100px; height: 100px; background: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #334155; flex-shrink: 0;">
+                        <i class="ph ph-image" style="font-size: 40px; color: var(--text-muted);" id="banner-image-placeholder"></i>
+                        <img id="banner-image-preview" src="" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    <div style="flex: 1; min-width: 200px;">
+                        <h3 id="banner-title" style="margin-bottom: 12px; font-size: 20px; font-weight: 700; color: white; text-transform: uppercase;">Cargando...</h3>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px;">
+                            <p style="font-size: 14px; color: var(--text-muted);"><i class="ph ph-money" style="color: #25D366; vertical-align: middle;"></i> <strong>Premio:</strong> <span id="banner-prize">-</span></p>
+                            <p style="font-size: 14px; color: var(--text-muted);"><i class="ph ph-calendar" style="color: var(--color-primary); vertical-align: middle;"></i> <strong>Sorteo:</strong> <span id="banner-date">-</span></p>
+                            <p style="font-size: 14px; color: var(--text-muted);"><i class="ph ph-ticket" style="color: var(--color-disp); vertical-align: middle;"></i> <strong>Puesto:</strong> <span id="banner-price">-</span></p>
+                            <p style="font-size: 14px; color: var(--text-muted);"><i class="ph ph-gift" style="color: #f59e0b; vertical-align: middle;"></i> <strong>Seco:</strong> <span id="banner-consolation">-</span></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid-controls">
+                    <input type="number" id="quick-search-number" placeholder="Buscar número (ej: 045)...">
+                </div>
+
+                <div class="numbers-grid" id="numbers-grid">
+                    <!-- JS generated numbers 000-999 -->
+                </div>
+            </section>
+
+            <!-- SECTION 2: REGISTRO -->
+            <section id="view-registro" class="view-section">
+                <div class="section-header">
+                    <h2>Nueva Venta</h2>
+                    <p>Registra un cliente y asigna sus números</p>
+                </div>
+
+                <form id="sale-form" class="glass-form">
+                    <div class="form-group">
+                        <label for="client-name">Nombre del Cliente</label>
+                        <input type="text" id="client-name" placeholder="Ej. Juan Pérez" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="client-phone">Número de Celular</label>
+                        <input type="tel" id="client-phone" placeholder="Ej. 3001234567" required>
+                    </div>
+
+                    <div class="form-row" id="dynamic-numbers-container">
+                        <!-- Números generados dinámicamente -->
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sale-status">Estado de la venta</label>
+                        <select id="sale-status" required>
+                            <option value="Pagado">💰 Pagado</option>
+                            <option value="Separado">⏳ Separado</option>
+                        </select>
+                    </div>
+
+                    <button type="submit" class="btn-primary">
+                        <i class="ph ph-floppy-disk"></i> Guardar Registro
+                    </button>
+                    <p class="form-note">Los datos se guardarán localmente en tu dispositivo.</p>
+                </form>
+            </section>
+
+            <!-- SECTION 3: LISTA/CLIENTES -->
+            <section id="view-clientes" class="view-section">
+                <div class="section-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <h2>Gestión de Ventas</h2>
+                        <p>Busca clientes o filtra por estado</p>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: #25D366; color: white; border: none; border-radius: 8px; cursor: pointer;" onclick="generateWhatsAppReport()">
+                            <i class="ph ph-whatsapp-logo"></i> Resumen
+                        </button>
+                        <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: var(--color-disp)" onclick="exportData()">
+                            <i class="ph ph-file-xls"></i> Exportar
+                        </button>
+                    </div>
+                </div>
+
+                <div class="filter-controls">
+                    <div class="search-box">
+                        <i class="ph ph-magnifying-glass"></i>
+                        <input type="text" id="search-client" placeholder="Buscar nombre, celular o número (ej: 002)...">
+                    </div>
+                    <select id="filter-status" class="filter-select">
+                        <option value="Todos">Todos</option>
+                        <option value="Pagado">Pagados</option>
+                        <option value="Separado">Separados</option>
+                    </select>
+                </div>
+
+                <div class="clients-list" id="clients-list">
+                    <!-- JS generated clients -->
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" data-target="view-dashboard">
+                <i class="ph ph-squares-four"></i>
+                <span>Marcador</span>
+            </button>
+            <button class="nav-item" data-target="view-registro">
+                <i class="ph ph-plus-circle"></i>
+                <span>Vender</span>
+            </button>
+            <button class="nav-item" data-target="view-clientes">
+                <i class="ph ph-address-book"></i>
+                <span>Clientes</span>
+            </button>
+        </nav>
+
+        <!-- Modal for Alerts -->
+        <div id="alert-modal" class="modal-overlay">
+            <div class="modal-content glass-card">
+                <i class="ph ph-warning-octagon modal-icon error"></i>
+                <h3 id="modal-title">¡Alerta!</h3>
+                <p id="modal-message">Mensaje de error.</p>
+                <button class="btn-secondary" id="close-modal">Entendido</button>
+            </div>
+        </div>
+
+        <!-- Modal for Configuration -->
+        <div id="config-modal" class="modal-overlay">
+            <div class="modal-content glass-card">
+                <i class="ph ph-gear modal-icon" style="color: var(--color-primary)"></i>
+                <h3>Configuración Inicial</h3>
+                <p>Define cómo funcionará tu rifa. ¡Cuidado! Una vez guardado no podrás cambiarlo para evitar errores en ventas futuras.</p>
+                
+                <form id="config-form" style="text-align: left; margin-bottom: 20px; max-height: 60vh; overflow-y: auto; padding-right: 10px;">
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-title">Título de la Rifa</label>
+                        <input type="text" id="config-title" placeholder="Ej: ¡RIFA EXPRESS: 100 PUESTOS!" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-prize">Premio Mayor</label>
+                        <input type="text" id="config-prize" placeholder="Ej: $1.000.000" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-consolation">Premio de Consolación</label>
+                        <input type="text" id="config-consolation" placeholder="Ej: $100.000 (El que se acerque, gana)" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-price">Valor del Puesto</label>
+                        <input type="text" id="config-price" placeholder="Ej: $15.000" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-date">Fecha del Sorteo</label>
+                        <input type="text" id="config-date" placeholder="Ej: Viernes 30 de Mayo" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-lottery">Lotería</label>
+                        <input type="text" id="config-lottery" placeholder="Ej: Lotería de Boyacá" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-play-digits">¿Con cuántos números juega?</label>
+                        <input type="text" id="config-play-digits" placeholder="Ej: Últimos 2 números" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-channel">Link de WhatsApp o Canal</label>
+                        <input type="url" id="config-channel" value="https://whatsapp.com/channel/0029Vb7mrNJAojYrMuf1Vl3i" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label for="config-size">Tamaño de la Rifa</label>
+                        <select id="config-size" required>
+                            <option value="100">100 Números (00 - 99)</option>
+                            <option value="500">500 Números (000 - 499)</option>
+                            <option value="1000" selected>1000 Números (000 - 999)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="config-package">Números por Puesto (Paquete)</label>
+                        <input type="number" id="config-package" value="3" min="1" max="10" required>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 20px;">
+                        <i class="ph ph-check-circle"></i> Guardar Configuración
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal for Winner & Finish -->
+        <div id="winner-modal" class="modal-overlay">
+            <div class="modal-content glass-card" style="text-align: center;">
+                <i class="ph ph-trophy modal-icon" style="color: #fbbf24;"></i>
+                <h3>Finalizar Rifa</h3>
+                <p>Ingresa el número ganador para generar el mensaje de anuncio. ¡También podrás resetear todo para una nueva rifa!</p>
+                <div class="form-group" style="text-align: left; margin-bottom: 15px;">
+                    <label for="winner-number">Número Ganador</label>
+                    <input type="text" id="winner-number" placeholder="Ej: 045">
+                </div>
+                <button class="btn-primary" onclick="announceWinner()" style="width: 100%; margin-bottom: 15px;">
+                    <i class="ph ph-whatsapp-logo"></i> Generar Anuncio de Ganador
+                </button>
+                <button class="btn-secondary" onclick="resetApp()" style="width: 100%; background: #ef4444; border-color: #ef4444; margin-bottom: 15px;">
+                    <i class="ph ph-trash"></i> Borrar Todo e Iniciar Nueva Rifa
+                </button>
+                <button class="btn-secondary" onclick="document.getElementById('winner-modal').classList.remove('show')">Cancelar</button>
+            </div>
+        </div>
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    
+    <script>
+// Database Structure (Firebase Realtime Database)
+
+// State
+let salesData = [];
+let takenNumbers = {}; // Maps '005' -> sale object
+let editModeId = null; // ID de la venta siendo editada
+let configData = null; // Configuración global de la rifa
+
+// Configuración de Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCxGWEcDhESZXV6tK2KXzY9khfEnUX2I3Y",
+  authDomain: "rifacontrol-ede07.firebaseapp.com",
+  databaseURL: "https://rifacontrol-ede07-default-rtdb.firebaseio.com",
+  projectId: "rifacontrol-ede07",
+  storageBucket: "rifacontrol-ede07.firebasestorage.app",
+  messagingSenderId: "782169260958",
+  appId: "1:782169260958:web:d03f8e80fac0c719650c8f"
+};
+
+let db, salesRef, configRef;
+
+try {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+    salesRef = db.ref('ventasRifa');
+    configRef = db.ref('configRifa');
+} catch (e) {
+    console.error("Firebase Init Error:", e);
+    if(!firebase) {
+        alert("¡No tienes conexión a internet! La app necesita internet para cargar la información de la nube (Firebase).");
+    }
+}
+
+// DOM Elements
+const views = document.querySelectorAll('.view-section');
+const navItems = document.querySelectorAll('.nav-item');
+const gridContainer = document.getElementById('numbers-grid');
+const saleForm = document.getElementById('sale-form');
+const clientsListContainer = document.getElementById('clients-list');
+
+// Initialize App
+function init() {
+    if(!salesRef) {
+        setupEventListeners();
+        return;
+    }
+
+    // Escuchar cambios en la nube EN TIEMPO REAL
+    salesRef.on('value', (snapshot) => {
+        const data = snapshot.val();
+        salesData = [];
+        if (data) {
+            Object.keys(data).forEach(key => {
+                salesData.push({
+                    id: key,
+                    ...data[key]
+                });
+            });
+            // Ordenar por más recientes arriba
+            salesData.sort((a,b) => new Date(b.date) - new Date(a.date));
+        }
+
+        buildTakenNumbersMap();
+        renderGrid();
+        updateStats();
+        renderClientsList();
+    }, (error) => {
+        showAlert("Error de Firebase", "No se pudieron leer las ventas: " + error.message);
+    });
+
+    if (configRef) {
+        configRef.on('value', (snapshot) => {
+            configData = snapshot.val();
+            if (!configData) {
+                document.getElementById('config-modal').classList.add('show');
+            } else {
+                document.getElementById('config-modal').classList.remove('show');
+                setupDynamicForm();
+                renderGrid();
+                updateStats();
+                updateBanner();
+            }
+        }, (error) => {
+            showAlert("Error de Firebase", "No se pudo leer la configuración: " + error.message);
+        });
+    }
+
+    setupEventListeners();
+
+    // Migración Opcional: Subir lo del LocalStorage viejo a la Nube.
+    const localData = localStorage.getItem('RifaSalesData');
+    if (localData) {
+        try {
+            const oldSales = JSON.parse(localData);
+            if(oldSales && oldSales.length > 0) {
+               if(confirm("💾 Se detectaron ventas que guardaste anteriormente sin conexión. ¿Deseas subirlas a tu nueva Nube en Firebase para que no se pierdan?")) {
+                   oldSales.forEach(s => {
+                       salesRef.push({
+                           name: s.name,
+                           phone: s.phone,
+                           numbers: s.numbers,
+                           status: s.status,
+                           date: s.date || new Date().toISOString()
+                       });
+                   });
+                   alert("¡Nube actualizada con éxito!");
+               }
+               // Remove it anyway so it doesn't prompt again
+               localStorage.removeItem('RifaSalesData');
+            }
+        } catch(e){}
+    }
+}
+
+// Data Processing
+function buildTakenNumbersMap() {
+    takenNumbers = {};
+    salesData.forEach(sale => {
+        if(sale.numbers && Array.isArray(sale.numbers)) {
+            sale.numbers.forEach(num => {
+                takenNumbers[num] = sale;
+            });
+        }
+    });
+}
+
+// Formatting string depending on max size
+function padNumber(numStr) {
+    if(!numStr && numStr !== 0 && numStr !== '0') return '';
+    let size = configData && configData.raffleSize ? configData.raffleSize : 1000;
+    if (size === 100) return numStr.toString().padStart(2, '0');
+    return numStr.toString().padStart(3, '0');
+}
+
+// Generate Dynamic Form based on Config
+function setupDynamicForm() {
+    const container = document.getElementById('dynamic-numbers-container');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    let pack = configData && configData.numbersPerTicket ? configData.numbersPerTicket : 3;
+    let maxLimit = (configData && configData.raffleSize) ? configData.raffleSize - 1 : 999;
+    
+    container.style.gridTemplateColumns = `repeat(min(${pack}, 3), 1fr)`;
+    
+    for (let i = 1; i <= pack; i++) {
+        const div = document.createElement('div');
+        div.className = 'form-group';
+        div.innerHTML = `
+            <label for="num-${i}">Número ${i} ${i === 1 ? '*' : ''}</label>
+            <input type="number" id="num-${i}" placeholder="${i === 1 ? '000' : 'Opcional'}" min="0" max="${maxLimit}" ${i === 1 ? 'required' : ''}>
+        `;
+        container.appendChild(div);
+    }
+}
+
+// Navigation Logic
+function setupEventListeners() {
+    navItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            // Remove active from all
+            navItems.forEach(nav => nav.classList.remove('active'));
+            views.forEach(view => view.classList.remove('active'));
+            
+            // Add active to clicked
+            item.classList.add('active');
+            const targetId = item.getAttribute('data-target');
+            document.getElementById(targetId).classList.add('active');
+            
+            // Scroll to top
+            window.scrollTo(0, 0);
+        });
+    });
+
+    // Image Preview setup
+    const coverInput = document.getElementById('cover-image');
+    if(coverInput) {
+        coverInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    document.getElementById('banner-image-preview').src = ev.target.result;
+                    document.getElementById('banner-image-preview').style.display = 'block';
+                    document.getElementById('banner-image-placeholder').style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    // Form Submit
+    if(saleForm) {
+        saleForm.addEventListener('submit', handleSaleSubmit);
+    }
+
+    // Filters
+    const searchClient = document.getElementById('search-client');
+    const filterStatus = document.getElementById('filter-status');
+    const quickSearchNumber = document.getElementById('quick-search-number');
+
+    if(searchClient) searchClient.addEventListener('input', renderClientsList);
+    if(filterStatus) filterStatus.addEventListener('change', renderClientsList);
+
+    // Quick number search
+    if(quickSearchNumber) {
+        quickSearchNumber.addEventListener('input', (e) => {
+            let val = e.target.value;
+            const strVal = val.toString();
+            
+            const cards = document.querySelectorAll('.num-card');
+            cards.forEach(card => {
+                const numVal = card.getAttribute('data-num');
+                if(!strVal || numVal.includes(strVal)) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Modal Close
+    const closeModal = document.getElementById('close-modal');
+    if(closeModal) {
+        closeModal.addEventListener('click', () => {
+            document.getElementById('alert-modal').classList.remove('show');
+        });
+    }
+
+    // Config form submit
+    const configForm = document.getElementById('config-form');
+    if (configForm) {
+        configForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (confirm("¿Estás seguro de la configuración? Esta acción es irreversible.")) {
+                configRef.set({
+                    title: document.getElementById('config-title').value,
+                    prize: document.getElementById('config-prize').value,
+                    consolation: document.getElementById('config-consolation').value,
+                    price: document.getElementById('config-price').value,
+                    date: document.getElementById('config-date').value,
+                    lottery: document.getElementById('config-lottery').value,
+                    playDigits: document.getElementById('config-play-digits').value,
+                    channel: document.getElementById('config-channel').value,
+                    raffleSize: parseInt(document.getElementById('config-size').value, 10),
+                    numbersPerTicket: parseInt(document.getElementById('config-package').value, 10)
+                });
+            }
+        });
+    }
+}
+
+function handleSaleSubmit(e) {
+    e.preventDefault();
+    if(!salesRef) {
+        showAlert("¡Error de red!", "Firebase no se pudo conectar. Verifica tu internet.");
+        return;
+    }
+    
+    const name = document.getElementById('client-name').value.trim();
+    const phone = document.getElementById('client-phone').value.trim();
+    const status = document.getElementById('sale-status').value;
+    
+    let pack = configData && configData.numbersPerTicket ? configData.numbersPerTicket : 3;
+    let numsToAssign = [];
+    let rawNums = [];
+    
+    for (let i = 1; i <= pack; i++) {
+        const input = document.getElementById(`num-${i}`);
+        if (input && input.value !== '') {
+            rawNums.push(padNumber(input.value));
+        }
+    }
+
+    numsToAssign = [...new Set(rawNums)];
+    if(rawNums.length !== numsToAssign.length) {
+        showAlert('¡Números Repetidos!', 'Has puesto el mismo número más de una vez en las casillas. Por favor revisa el formulario.');
+        return;
+    }
+
+    if(numsToAssign.length === 0) {
+        showAlert('¡Error!', 'Debes ingresar al menos el Número 1.');
+        return;
+    }
+
+    // Validation 1: Check if already taken
+    const maxLimit = (configData && configData.raffleSize) ? configData.raffleSize - 1 : 999;
+    for(let i=0; i<numsToAssign.length; i++) {
+        const checkNum = numsToAssign[i];
+        
+        // Ensure valid range
+        const numericVal = parseInt(checkNum, 10);
+        if(numericVal < 0 || numericVal > maxLimit) {
+            showAlert('¡Número Inválido!', `El número ${checkNum} está fuera del rango (0 al ${maxLimit}).`);
+            return;
+        }
+
+        if(takenNumbers[checkNum]) {
+            const owner = takenNumbers[checkNum];
+            if(owner.id !== editModeId) {
+                showAlert('¡Número ya asignado!', `El número ${checkNum} ya le pertenece a ${owner.name} (${owner.status}). No puedes guardarlo.`);
+                return;
+            }
+        }
+    }
+
+    if(editModeId) {
+        // Actualizar datos en Firebase
+        salesRef.child(editModeId).update({
+            name,
+            phone,
+            numbers: numsToAssign,
+            status
+        });
+        
+        editModeId = null;
+        document.querySelector('#sale-form button[type="submit"]').innerHTML = '<i class="ph ph-floppy-disk"></i> Guardar Registro';
+        document.querySelector('#view-registro h2').textContent = 'Nueva Venta';
+    } else {
+        // Guardar uno nuevo en Firebase
+        salesRef.push({
+            name,
+            phone,
+            numbers: numsToAssign,
+            status,
+            date: new Date().toISOString()
+        });
+    }
+
+    // Limpiar formulario y navegar al tablero
+    saleForm.reset();
+    document.querySelector('.nav-item[data-target="view-dashboard"]').click();
+}
+
+function renderGrid() {
+    if(!gridContainer) return;
+    
+    const maxItems = (configData && configData.raffleSize) ? configData.raffleSize : 1000;
+    const subtitleEl = document.getElementById('panel-subtitle');
+    if (subtitleEl) {
+        subtitleEl.textContent = `Del ${padNumber(0)} al ${padNumber(maxItems - 1)}`;
+    }
+    
+    gridContainer.innerHTML = '';
+    
+    const fragment = document.createDocumentFragment();
+
+    for(let i=0; i<maxItems; i++) {
+        const numStr = padNumber(i);
+        const card = document.createElement('div');
+        
+        let stateClass = 'disp'; // default
+        let tooltipText = `Libre`;
+
+        if(takenNumbers[numStr]) {
+            const sale = takenNumbers[numStr];
+            if(sale.status === 'Pagado') {
+                stateClass = 'pagado';
+            } else if (sale.status === 'Separado') {
+                stateClass = 'separado';
+            }
+            tooltipText = `${sale.name} - ${sale.status}`;
+        }
+        
+        card.className = `num-card ${stateClass}`;
+        card.setAttribute('data-num', numStr);
+        card.title = tooltipText;
+        
+        card.innerHTML = `<span>${numStr}</span>`;
+        
+        let isDragging = false;
+        let startPos = {x: 0, y: 0};
+
+        card.addEventListener('pointerdown', (e) => {
+             isDragging = false;
+             startPos = {x: e.clientX, y: e.clientY};
+        }, {passive: true});
+
+        card.addEventListener('pointermove', (e) => {
+             if(Math.abs(e.clientX - startPos.x) > 10 || Math.abs(e.clientY - startPos.y) > 10) {
+                 isDragging = true;
+             }
+        }, {passive: true});
+
+        card.addEventListener('click', (e) => {
+             if(isDragging) {
+                 e.preventDefault();
+                 return;
+             }
+             if(stateClass === 'disp') {
+                  navigateToFormWithNumber(numStr);
+             } else {
+                  alert(`Número: ${numStr}\nCliente: ${takenNumbers[numStr].name}\nCel: ${takenNumbers[numStr].phone}\nEstado: ${takenNumbers[numStr].status}`);
+             }
+        });
+
+        fragment.appendChild(card);
+    }
+    
+    gridContainer.appendChild(fragment);
+    
+    // Clear quick search on rerender
+    const quickInput = document.getElementById('quick-search-number');
+    if(quickInput && quickInput.value === '') {
+        // no-op
+    }
+}
+
+function navigateToFormWithNumber(numStr) {
+    document.querySelector('.nav-item[data-target="view-registro"]').click();
+    
+    let pack = configData && configData.numbersPerTicket ? configData.numbersPerTicket : 3;
+    for (let i = 1; i <= pack; i++) {
+        const input = document.getElementById(`num-${i}`);
+        if (input && !input.value) {
+            input.value = parseInt(numStr, 10);
+            break;
+        }
+    }
+}
+
+function updateStats() {
+    let vendidos = 0;
+    let separados = 0;
+    let libres = 0;
+
+    const maxItems = (configData && configData.raffleSize) ? configData.raffleSize : 1000;
+    for(let i=0; i<maxItems; i++) {
+        const numStr = padNumber(i);
+        if(takenNumbers[numStr]) {
+            if(takenNumbers[numStr].status === 'Pagado') vendidos++;
+            else separados++;
+        } else {
+            libres++;
+        }
+    }
+
+    const dEl = document.getElementById('stat-disp');
+    const vEl = document.getElementById('stat-vend');
+    const sEl = document.getElementById('stat-sep');
+
+    if(dEl) dEl.textContent = libres;
+    if(vEl) vEl.textContent = vendidos;
+    if(sEl) sEl.textContent = separados;
+}
+
+function renderClientsList() {
+    if(!clientsListContainer) return;
+    
+    const searchInput = document.getElementById('search-client');
+    const statusSelect = document.getElementById('filter-status');
+    
+    const searchVal = searchInput ? searchInput.value.toLowerCase() : '';
+    const filterStatus = statusSelect ? statusSelect.value : 'Todos';
+
+    const filtered = salesData.filter(sale => {
+        const sName = String(sale.name || '').toLowerCase();
+        const sPhone = String(sale.phone || '');
+        const sNums = sale.numbers || [];
+        
+        const matchesSearch = sName.includes(searchVal) || 
+                              sPhone.includes(searchVal) ||
+                              sNums.some(n => String(n).includes(searchVal));
+                              
+        const matchesStatus = filterStatus === 'Todos' || sale.status === filterStatus;
+        return matchesSearch && matchesStatus;
+    });
+
+    clientsListContainer.innerHTML = '';
+
+    if(filtered.length === 0) {
+        clientsListContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); padding: 40px 0;">No se encontraron registros</div>`;
+        return;
+    }
+
+    filtered.forEach(sale => {
+        const el = document.createElement('div');
+        el.className = 'client-card';
+        
+        const numsHtml = sale.numbers.map(n => `<span class="badge ${sale.status.toLowerCase()}">${n}</span>`).join('');
+        const statusIcon = sale.status === 'Pagado' ? '💰' : '⏳';
+
+        el.innerHTML = `
+            <div class="client-header">
+                <div>
+                    <h4>${sale.name}</h4>
+                    <p><i class="ph ph-phone"></i> ${sale.phone}</p>
+                </div>
+                <div class="client-status">
+                     <span class="status-chip ${sale.status.toLowerCase()}">${statusIcon} ${sale.status}</span>
+                </div>
+            </div>
+            <div class="client-nums">
+                ${numsHtml}
+            </div>
+            <button class="btn-delete" onclick="deleteSale('${sale.id}')" title="Borrar o liberar números"><i class="ph ph-trash"></i></button>
+            <button class="btn-delete" style="right: 70px; background: rgba(37, 211, 102, 0.1); color: #25D366;" onclick="sendWhatsApp('${sale.id}')" title="Enviar WhatsApp"><i class="ph ph-whatsapp-logo"></i></button>
+            <button class="btn-delete" style="right: 120px; background: rgba(16, 185, 129, 0.1); color: var(--color-disp);" onclick="toggleStatus('${sale.id}')" title="Cambiar Estado"><i class="ph ph-arrows-left-right"></i></button>
+            <button class="btn-delete" style="right: 170px; background: rgba(99, 102, 241, 0.1); color: var(--color-primary);" onclick="editSale('${sale.id}')" title="Editar"><i class="ph ph-pencil-simple"></i></button>
+        `;
+        clientsListContainer.appendChild(el);
+    });
+}
+
+window.deleteSale = function(id) {
+    if(!salesRef) return;
+    if(confirm('¿Estás seguro de que quieres eliminar este registro y liberar sus números?')) {
+        salesRef.child(id).remove();
+    }
+}
+
+window.toggleStatus = function(id) {
+    if(!salesRef) return;
+    const sale = salesData.find(s => s.id === id);
+    if(sale) {
+        const newStatus = sale.status === 'Pagado' ? 'Separado' : 'Pagado';
+        salesRef.child(id).update({ status: newStatus });
+    }
+}
+
+window.editSale = function(id) {
+    const sale = salesData.find(s => s.id === id);
+    if(sale) {
+        editModeId = id;
+        document.getElementById('client-name').value = sale.name;
+        document.getElementById('client-phone').value = sale.phone;
+        document.getElementById('sale-status').value = sale.status;
+        
+        // Populate inputs
+        let pack = configData && configData.numbersPerTicket ? configData.numbersPerTicket : 3;
+        for (let i = 1; i <= pack; i++) {
+            const input = document.getElementById(`num-${i}`);
+            if (input) {
+                input.value = sale.numbers[i-1] ? parseInt(sale.numbers[i-1], 10) : '';
+            }
+        }
+
+        // Change UI text
+        document.querySelector('#sale-form button[type="submit"]').innerHTML = '<i class="ph ph-pencil-simple"></i> Actualizar Registro';
+        document.querySelector('#view-registro h2').textContent = 'Editar Venta';
+        
+        // Navigate there
+        document.querySelector('.nav-item[data-target="view-registro"]').click();
+    }
+}
+
+window.exportPDF = async function() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Check if an image is selected
+    const coverInput = document.getElementById('cover-image');
+    
+    if (coverInput && coverInput.files && coverInput.files[0]) {
+        const file = coverInput.files[0];
+        const imgData = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+        
+        const pdfWidth = doc.internal.pageSize.getWidth();
+        const pdfHeight = doc.internal.pageSize.getHeight();
+        
+        const img = new Image();
+        img.src = imgData;
+        await new Promise(r => img.onload = r);
+        
+        const imgRatio = img.width / img.height;
+        const pdfRatio = pdfWidth / pdfHeight;
+        
+        let finalWidth = pdfWidth;
+        let finalHeight = finalWidth / imgRatio;
+        
+        if (finalHeight > pdfHeight) {
+            finalHeight = pdfHeight;
+            finalWidth = finalHeight * imgRatio;
+        }
+        
+        const xOffset = (pdfWidth - finalWidth) / 2;
+        const yOffset = (pdfHeight - finalHeight) / 2;
+        
+        // Use JPEG or PNG based on file type. We use 'JPEG' as fallback wrapper.
+        doc.addImage(imgData, 'JPEG', xOffset, yOffset, finalWidth, finalHeight);
+    } else {
+        // Página 1: Portada por Defecto
+        doc.setFontSize(28);
+        doc.setTextColor(15, 23, 42);
+        doc.text("RIFA DE 1 MILLÓN DE PESOS", 105, 80, { align: "center" });
+        
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        doc.text("Juega el 23 de Mayo con la Lotería de Boyacá", 105, 100, { align: "center" });
+        
+        doc.setFontSize(14);
+        doc.text("Organizador: Danny Trujillo", 105, 130, { align: "center" });
+        doc.text("Celular: 3004431074", 105, 140, { align: "center" });
+    }
+
+    // Página 2: Cuadrícula de números
+    doc.addPage();
+    
+    // Leyenda de colores
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setFillColor(236, 253, 245); // Libre
+    doc.rect(15, 10, 8, 8, 'F');
+    // Borde a la leyenda "Libre"
+    doc.setDrawColor(16, 185, 129);
+    doc.setLineWidth(0.4);
+    doc.rect(15, 10, 8, 8, 'S');
+    doc.setTextColor(0, 0, 0);
+    doc.text("Libre", 26, 15);
+    
+    doc.setFillColor(245, 158, 11); // Separado
+    doc.rect(50, 10, 8, 8, 'F');
+    doc.text("Separado", 61, 15);
+    
+    doc.setFillColor(244, 63, 94); // Pagado
+    doc.rect(95, 10, 8, 8, 'F');
+    doc.text("Pagado", 106, 15);
+    
+    // Configuración de grilla
+    const startX = 15;
+    const startY = 30; // Arranca debajo de la leyenda
+    const boxSize = 10;
+    const gap = 2;
+    const cols = 15; 
+    let currentX = startX;
+    let currentY = startY;
+    
+    doc.setFontSize(9);
+    
+    const maxItems = (configData && configData.raffleSize) ? configData.raffleSize : 1000;
+    for(let i = 0; i < maxItems; i++) {
+        const numStr = padNumber(i);
+        let bgColor = [236, 253, 245]; 
+        let txtColor = [16, 185, 129];
+        let isLibre = true;
+        
+        if(takenNumbers[numStr]) {
+            isLibre = false;
+            if(takenNumbers[numStr].status === 'Pagado') {
+                bgColor = [244, 63, 94];
+                txtColor = [255, 255, 255];
+            } else if (takenNumbers[numStr].status === 'Separado') {
+                bgColor = [245, 158, 11];
+                txtColor = [255, 255, 255];
+            }
+        }
+        
+        doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+        doc.rect(currentX, currentY, boxSize, boxSize, 'F');
+        
+        if (isLibre) {
+            doc.setFont("helvetica", "bold");
+            doc.setDrawColor(16, 185, 129); 
+            doc.setLineWidth(0.4);
+            doc.rect(currentX, currentY, boxSize, boxSize, 'S'); // Draw border
+        } else {
+            doc.setFont("helvetica", "normal");
+        }
+        
+        doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
+        doc.text(numStr, currentX + boxSize/2, currentY + boxSize/2 + 3, { align: "center" });
+        
+        currentX += boxSize + gap;
+        if ((i + 1) % cols === 0) {
+            currentX = startX;
+            currentY += boxSize + gap;
+        }
+        
+        // Salto de página
+        if (currentY + boxSize > 280 && i < maxItems - 1) {
+            doc.addPage();
+            currentY = 20; // reset sin leyenda para la siguiente página
+        }
+    }
+    
+    doc.save("Cartones_Rifa.pdf");
+}
+
+window.sendWhatsApp = function(id) {
+    const sale = salesData.find(s => s.id === id);
+    if (sale) {
+        let phone = sale.phone.replace(/\D/g, ''); // Solo números
+        
+        // Agregar +57 para Colombia
+        if (!phone.startsWith('57')) {
+            phone = '57' + phone.slice(-10);
+        }
+
+        const nums = sale.numbers.join(', ');
+        
+        let msg = '';
+        
+        let isReminder = false;
+        let isPaymentConfirm = false;
+        
+        if (sale.status === 'Separado') {
+            isReminder = confirm("Este cliente está en estado 'Separado'.\n\n- Aceptar: Enviar Recordatorio de Cobro (Automático y estricto).\n- Cancelar: Enviar Mensaje Inicial de Compra (Informa que apartó el puesto pero que debe pagar).");
+        } else if (sale.status === 'Pagado') {
+            isPaymentConfirm = confirm("Este cliente está en estado 'Pagado'.\n\n- Aceptar: Enviar Recibo de Pago (Confirma que su pago fue recibido y ya participa).\n- Cancelar: Enviar Mensaje Inicial de Compra (Si acaba de registrar la compra y pagó de inmediato).");
+        }
+        
+        if (isReminder) {
+            msg += `*[MENSAJE AUTOMÁTICO - RECORDATORIO DE PAGO]*\n\n`;
+            msg += `Estimado/a ${sale.name},\n\n`;
+            msg += `Este es un recordatorio del sistema RifaControl. Te informamos que tienes números separados para la *${configData?.title || 'Rifa Millonaria'}* y la fecha límite se acerca.\n\n`;
+            msg += `*Números seleccionados:* ${nums}\n`;
+            msg += `*Valor pendiente:* ${configData?.price || '-'}\n`;
+            msg += `*Fecha del Sorteo:* ${configData?.date || '-'}\n\n`;
+            msg += `*Aviso Importante:*\n`;
+            msg += `Los cupos son limitados. Tu puesto se asegura *solo tras confirmar el pago* enviado a Danny Trujillo.\n\n`;
+            msg += `Los números no pagados serán liberados al público, perdiendo cualquier derecho a premio o reclamo en caso de resultar ganadores en el sorteo oficial.\n\n`;
+            msg += `Por favor, envíanos el comprobante de pago respondiendo a este mensaje para activar tu participación oficial.\n\n`;
+            msg += `¡No te quedes por fuera de esta gran oportunidad!`;
+        } else if (isPaymentConfirm) {
+            msg += `*[RECIBO DE PAGO Y CONFIRMACIÓN DE PARTICIPACIÓN]*\n\n`;
+            msg += `¡Hola ${sale.name}!\n\n`;
+            msg += `Confirmamos que hemos recibido tu pago exitosamente.\n\n`;
+            msg += `Tu participación en la *${configData?.title || 'Rifa Millonaria'}* está *100% activa y oficial*.\n\n`;
+            msg += `*Números seleccionados:* ${nums}\n`;
+            msg += `*Estado de tu jugada:* Pagado\n`;
+            msg += `*Fecha del Sorteo:* ${configData?.date || '-'}\n`;
+            msg += `*Lotería:* ${configData?.lottery || '-'}\n\n`;
+            msg += `Te deseamos muchísima suerte en el sorteo. Recuerda que estaremos publicando las actualizaciones y el resultado oficial en nuestro canal:\n`;
+            if (configData?.channel) {
+                msg += `${configData.channel}\n\n`;
+            }
+            msg += `¡Gracias por tu confianza y mucha suerte!`;
+        } else {
+            msg += `¡Hola ${sale.name}!\n\nHas adquirido tu puesto para la *${configData?.title || 'Rifa Millonaria'}*.\n\n`;
+            msg += `*Premio Mayor:* ${configData?.prize || '-'}\n`;
+            msg += `*Consolación:* ${configData?.consolation || '-'}\n`;
+            msg += `*Valor:* ${configData?.price || '-'}\n`;
+            msg += `*Fecha del Sorteo:* ${configData?.date || '-'}\n`;
+            msg += `*Lotería:* ${configData?.lottery || '-'}\n`;
+            msg += `*Juega con:* ${configData?.playDigits || '-'}\n\n`;
+            msg += `*Reglas de Participación (Resumen)*\n`;
+            msg += `- Cómo ganar: Juegas con los números indicados en el flyer según el sorteo oficial mencionado.\n`;
+            msg += `- Tu puesto: Se asegura solo tras confirmar el pago enviado a Danny Trujillo. No se reservan cupos de palabra.\n`;
+            msg += `- Transparencia: La lista de vendidos se actualiza diariamente en el canal. Solo se publican datos parciales (Nombre y últimos 4 dígitos del cel) para proteger tu privacidad.\n`;
+            msg += `- Resultados: El ganador será quien coincida con las cifras oficiales de la lotería sorteada.\n`;
+            msg += `- Garantía: Si el número ganador no fue vendido, el premio se mantiene y el sorteo se traslada a la siguiente semana.\n`;
+            msg += `- Entrega: La entrega se coordina con Danny Trujillo previa verificación de identidad.\n\n`;
+            msg += `Al participar, aceptas estos términos. Reglamento completo disponible en nuestro canal.\n\n`;
+            msg += `*Números seleccionados:* ${nums}\n`;
+            msg += `*Estado de tu jugada:* ${sale.status}\n\n`;
+            
+            if (sale.status === 'Separado') {
+                msg += `*(Nota: Para asegurar y confirmar tu participación con estos números, debes enviar el comprobante de pago antes de la fecha límite).* \n\n`;
+            }
+            
+            if (configData?.channel) {
+                msg += `*Únete a nuestro canal para estar enterado de todo:*\n${configData.channel}\n\n`;
+            }
+            msg += `¡Mucha suerte!`;
+        }
+
+        const encodedText = encodeURIComponent(msg);
+        const url = `https://wa.me/${phone}?text=${encodedText}`;
+        window.open(url, '_blank');
+    }
+}
+
+window.announceWinner = function() {
+    const winNum = document.getElementById('winner-number').value.trim();
+    if (!winNum) {
+        showAlert("¡Error!", "Por favor ingresa un número ganador.");
+        return;
+    }
+    
+    const paddedNum = padNumber(winNum);
+    const sale = takenNumbers[paddedNum];
+    const winnerName = sale ? sale.name : "Nadie (Número no vendido)";
+    
+    let msg = `*¡TENEMOS GANADOR DE LA ${configData?.title?.toUpperCase() || 'RIFA'}!*\n\n`;
+    msg += `El número premiado ha sido el: *${paddedNum}*\n\n`;
+    msg += `*Ganador:* ${winnerName}\n`;
+    if (sale) {
+        msg += `*Números jugados:* ${sale.numbers.join(', ')}\n\n`;
+    } else {
+        msg += `\n`;
+    }
+    msg += `¡Felicidades al afortunado ganador y muchísimas gracias a todos por participar!\n\n`;
+    if (configData?.channel) {
+        msg += `Estén atentos a nuestro canal para la próxima rifa:\n${configData.channel}\n\n`;
+    }
+    msg += `¡Mucha suerte la próxima vez!`;
+
+    const encodedText = encodeURIComponent(msg);
+    const url = `https://wa.me/?text=${encodedText}`;
+    window.open(url, '_blank');
+    document.getElementById('winner-modal').classList.remove('show');
+};
+
+window.resetApp = function() {
+    const confirmation = prompt("⚠️ ¡PELIGRO! ⚠️\nEscribe 'BORRAR' para confirmar que quieres eliminar TODA la información de Firebase y empezar una nueva rifa. Esto no se puede deshacer.");
+    if (confirmation === 'BORRAR') {
+        if (salesRef && configRef) {
+            salesRef.remove().then(() => {
+                return configRef.remove();
+            }).then(() => {
+                alert("¡Rifa reiniciada exitosamente! La página se recargará.");
+                location.reload();
+            }).catch(e => {
+                showAlert("Error al borrar", e.message);
+            });
+        }
+    } else if (confirmation !== null) {
+        alert("Operación cancelada. No escribiste 'BORRAR'.");
+    }
+};
+
+window.exportData = function() {
+    let csv = "Fecha;Nombre;Celular;Estado;Numeros\n";
+    salesData.forEach(sale => {
+        const dateStr = new Date(sale.date).toLocaleDateString('es-CO');
+        const numsStr = sale.numbers.join(', ');
+        csv += `${dateStr};${sale.name};'${sale.phone}';${sale.status};"${numsStr}"\n`;
+    });
+    
+    const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Rifa_Control_Export.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+window.generateWhatsAppReport = function() {
+    if (salesData.length === 0) {
+        showAlert("¡Aviso!", "Aún no hay puestos vendidos para generar el reporte.");
+        return;
+    }
+    
+    let msg = `*[REPORTES DE LA RIFA]* 📊\n`;
+    msg += `¡Gracias a todos por su apoyo! Aquí está la lista oficial de nuestros participantes hasta el momento:\n\n`;
+    
+    msg += `*[PUESTOS VENDIDOS]*\n`;
+    salesData.forEach(sale => {
+        let phoneMask = sale.phone.slice(-4);
+        msg += `- ${sale.name} (***${phoneMask}): ${sale.numbers.join(', ')}\n`;
+    });
+    
+    msg += `\n*[NÚMEROS DISPONIBLES]*\n`;
+    let availableCount = 0;
+    let availableStr = '';
+    
+    const maxItems = (configData && configData.raffleSize) ? configData.raffleSize : 1000;
+    for (let i = 0; i < maxItems; i++) {
+        let numStr = padNumber(i);
+        if (!takenNumbers[numStr]) {
+            availableCount++;
+            availableStr += numStr + ', ';
+        }
+    }
+    
+    if (availableStr.length > 0) {
+        availableStr = availableStr.slice(0, -2);
+        msg += `${availableStr}\n\n`;
+    }
+    
+    msg += `¡Aún quedan ${availableCount} oportunidades de ganar nuestro espectacular premio!\n\n`;
+    msg += `💰 *Valor del puesto:* ${configData?.price || '-'}\n`;
+    msg += `📅 *Sorteo:* ${configData?.date || '-'}\n\n`;
+    msg += `¡Anímate y separa tu número de la suerte antes de que se agoten!\n`;
+    msg += `👉 *Escríbenos aquí para comprar el tuyo:*\n`;
+    msg += `wa.me/573004431074?text=Info%20Rifa`;
+
+    navigator.clipboard.writeText(msg).then(() => {
+        showAlert("¡Copiado al Portapapeles!", "El reporte ha sido generado y copiado. Ya puedes ir a WhatsApp y 'Pegar' el mensaje en tu canal o grupo.");
+    }).catch(err => {
+        showAlert("Error", "No se pudo copiar automáticamente. Por favor inténtalo desde un computador o asegúrate de dar permisos al portapapeles.");
+        console.error(err);
+    });
+}
+
+function showAlert(title, message) {
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-message').textContent = message;
+    
+    const modal = document.getElementById('alert-modal');
+    modal.classList.add('show');
+    if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+
+window.updateBanner = function() {
+    if(!configData) return;
+    const bTitle = document.getElementById('banner-title');
+    const bPrize = document.getElementById('banner-prize');
+    const bDate = document.getElementById('banner-date');
+    const bPrice = document.getElementById('banner-price');
+    const bCons = document.getElementById('banner-consolation');
+    
+    if(bTitle) bTitle.textContent = configData.title || 'RIFA';
+    if(bPrize) bPrize.textContent = configData.prize || '-';
+    if(bDate) bDate.textContent = configData.date || '-';
+    if(bPrice) bPrice.textContent = configData.price || '-';
+    if(bCons) bCons.textContent = configData.consolation || '-';
+};
+
+// Start
+document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
