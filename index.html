@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 30215)
+Total output lines: 2629
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -648,6 +651,12 @@ body {
                         <label for="client-phone">Número de Celular</label>
                         <input type="tel" id="client-phone" placeholder="Ej. 3001234567" required>
                     </div>
+                    <div class="form-group" style="grid-column:1/-1;">
+                        <label style="display:flex;align-items:flex-start;gap:10px;font-weight:500;">
+                            <input type="checkbox" id="client-marketing-consent" style="width:20px;height:20px;min-height:20px;flex:0 0 20px;padding:0;margin:3px 0 0;accent-color:#10b981;">
+                            <span>El cliente acepta recibir por WhatsApp información sobre futuras rifas. Marca solo si dio su autorización.</span>
+                        </label>
+                    </div>
 
                     <div class="form-row" id="dynamic-numbers-container">
                         <!-- Números generados dinámicamente -->
@@ -836,7 +845,31 @@ body {
                 <h3>Administrar vendedores</h3>
                 <p style="margin:8px 0 16px;color:var(--text-muted)">Las personas se registran desde la pantalla de acceso y quedan pendientes hasta que las apruebes.</p>
                 <div id="vendor-list"></div>
+                <button class="btn-primary" style="width:100%;margin-top:14px" onclick="openCustomerDatabase()"><i class="ph ph-address-book"></i> Consultar base de clientes</button>
                 <button class="btn-secondary" style="width:100%;margin-top:14px" onclick="document.getElementById('admin-modal').classList.remove('show')">Cerrar</button>
+            </div>
+        </div>
+        <div id="customer-db-modal" class="modal-overlay">
+            <div class="modal-content glass-card" style="max-width:760px;max-height:88vh;overflow:auto">
+                <h3>Base de clientes</h3>
+                <p style="margin:8px 0 14px;color:var(--text-muted)">Clientes registrados de todas las rifas. Solo prepara el mensaje en WhatsApp; tú revisas y lo envías.</p>
+                <div id="customer-db-summary" style="margin-bottom:12px;color:var(--text-muted)"></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+                    <input id="customer-db-search" type="search" placeholder="Buscar por nombre o celular" style="flex:1;min-width:200px">
+                    <select id="customer-db-filter" class="filter-select">
+                        <option value="todos">Todos los clientes</option>
+                        <option value="autorizados">Aceptaron novedades</option>
+                        <option value="sin-autorizacion">Sin autorización</option>
+                    </select>
+                </div>
+                <label for="customer-campaign-message">Mensaje para ofrecer la próxima rifa</label>
+                <textarea id="customer-campaign-message" rows="3" style="width:100%;margin:6px 0 12px" placeholder="Hola {{nombre}}, ya tenemos una nueva rifa: {{rifa}}. ¿Te gustaría participar?"></textarea>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+                    <button class="btn-primary" onclick="exportCustomerDatabase()"><i class="ph ph-file-csv"></i> Descargar lista</button>
+                    <button class="btn-secondary" onclick="importExistingSalesToCustomerDatabase()"><i class="ph ph-arrows-clockwise"></i> Incluir ventas anteriores</button>
+                </div>
+                <div id="customer-db-list"></div>
+                <button class="btn-secondary" style="width:100%;margin-top:14px" onclick="document.getElementById('customer-db-modal').classList.remove('show')">Cerrar</button>
             </div>
         </div>
     <!-- Scripts -->
@@ -861,6 +894,7 @@ let raffleIndex = {};
 let authSignupMode = false;
 let currentCoverImage = null;
 let currentTicketImage = null;
+let customerDatabase = {};
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -1271,6 +1305,148 @@ window.setVendorRole = async function(uid, role, active) {
     openAdminPanel();
 };
 
+function normalizeCustomerPhone(phone) {
+    let digits = String(phone || '').replace(/\D/g, '');
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (digits.startsWith('57') && digits.length === 12) digits = digits.slice(2);
+    return digits;
+}
+
+async function saveCustomerPurchase(saleId, sale, marketingConsent) {
+    const phoneKey = normalizeCustomerPhone(sale.phone);
+    if (!phoneKey) return;
+    const now = new Date().toISOString();
+    const updates = {
+        [`contactos/${phoneKey}/nombre`]: sale.name,
+        [`contactos/${phoneKey}/celular`]: sale.phone,
+        [`contactos/${phoneKey}/actualizado`]: now,
+        [`contactos/${phoneKey}/ultimaCompra`]: now,
+        [`contactos/${phoneKey}/compras/${currentRaffleId}/${saleId}`]: {
+            rifa: configData?.title || 'Rifa',
+            numeros: sale.numbers || [],
+            fecha: sale.date || now,
+            estado: sale.status || 'Separado'
+        }
+    };
+    if (marketingConsent) {
+        updates[`contactos/${phoneKey}/marketingOptIn`] = true;
+        updates[`contactos/${phoneKey}/consentimientoFecha`] = now;
+        updates[`contactos/${phoneKey}/consentimientoPor`] = currentUser.uid;
+    }
+    await db.ref().update(updates);
+}
+
+window.openCustomerDatabase = async function() {
+    if (currentProfile?.rol !== 'admin') return;
+    document.getElementById('admin-modal').classList.remove('show');
+    document.getElementById('customer-db-modal').classList.add('show');
+    document.getElementById('customer-db-summary').textContent = 'Cargando base de clientes…';
+    try {
+        const snapshot = await db.ref('contactos').once('value');
+        customerDatabase = snapshot.val() || {};
+        renderCustomerDatabase();
+    } catch (error) {
+        document.getElementById('customer-db-summary').textContent = `No se pudo consultar la base: ${error.message}`;
+    }
+};
+
+function renderCustomerDatabase() {
+    const list = document.getElementById('customer-db-list');
+    const summary = document.getElementById('customer-db-summary');
+    if (!list || !summary) return;
+    const customers = Object.entries(customerDatabase).map(([key, customer]) => ({ key, ...customer }));
+    const optedIn = customers.filter(customer => customer.marketingOptIn === true);
+    summary.textContent = `${customers.length} clientes · ${optedIn.length} aceptaron recibir novedades por WhatsApp.`;
+    const search = (document.getElementById('customer-db-search')?.value || '').trim().toLowerCase();
+    const filter = document.getElementById('customer-db-filter')?.value || 'todos';
+    const filtered = customers.filter(customer => {
+        const consent = customer.marketingOptIn === true;
+        const matchesFilter = filter === 'todos' || (filter === 'autorizados' ? consent : !consent);
+        const matchesSearch = String(customer.nombre || '').toLowerCase().includes(search) || String(customer.celular || '').includes(search);
+        return matchesFilter &&…215 tokens truncated… []).join(', '))} · ${escapeHtml(purchase.estado || '')}</li>`).join('')}</ul></details>`
+            : '';
+        const card = document.createElement('div');
+        card.className = 'client-card';
+        card.innerHTML = `<div class="client-header"><div><h4>${escapeHtml(customer.nombre || 'Cliente')}</h4><p><i class="ph ph-phone"></i> ${escapeHtml(customer.celular || '')}</p><p style="margin-top:5px;color:var(--text-muted)">${purchases} compras registradas · ${authorized ? 'Aceptó novedades' : 'Sin autorización para novedades'}</p>${historyHtml}</div><span class="status-chip ${authorized ? 'pagado' : 'separado'}">${authorized ? 'Autorizado' : 'No autorizado'}</span></div><div class="client-actions">${authorized ? `<button class="btn-delete" style="background:rgba(37,211,102,.12);color:#25D366" onclick="prepareCustomerWhatsApp('${escapeHtml(customer.key)}')"><i class="ph ph-whatsapp-logo"></i> Preparar WhatsApp</button><button class="btn-delete" style="background:rgba(244,63,94,.12);color:#fb7185" onclick="setCustomerMarketingConsent('${escapeHtml(customer.key)}',false)">Quitar autorización</button>` : `<button class="btn-delete" style="background:rgba(16,185,129,.12);color:var(--color-disp)" onclick="setCustomerMarketingConsent('${escapeHtml(customer.key)}',true)">Registrar autorización</button>`}</div>`;
+        list.appendChild(card);
+    });
+}
+
+window.setCustomerMarketingConsent = async function(phoneKey, consent) {
+    if (currentProfile?.rol !== 'admin' || !customerDatabase[phoneKey]) return;
+    if (consent && !confirm('Confirma que este cliente autorizó recibir novedades de rifas por WhatsApp.')) return;
+    const updates = { marketingOptIn: consent, actualizado: new Date().toISOString() };
+    if (consent) {
+        updates.consentimientoFecha = new Date().toISOString();
+        updates.consentimientoPor = currentUser.uid;
+    } else {
+        updates.consentimientoRevocado = new Date().toISOString();
+    }
+    await db.ref(`contactos/${phoneKey}`).update(updates);
+    customerDatabase[phoneKey] = { ...customerDatabase[phoneKey], ...updates };
+    renderCustomerDatabase();
+};
+
+window.prepareCustomerWhatsApp = function(phoneKey) {
+    if (currentProfile?.rol !== 'admin') return;
+    const customer = customerDatabase[phoneKey];
+    if (!customer || customer.marketingOptIn !== true) return;
+    let phone = normalizeCustomerPhone(customer.celular);
+    if (!phone.startsWith('57')) phone = `57${phone.slice(-10)}`;
+    const raffleTitle = configData?.title || 'nuestra próxima rifa';
+    const template = document.getElementById('customer-campaign-message')?.value.trim() || 'Hola {{nombre}}, ya tenemos una nueva rifa: {{rifa}}. ¿Te gustaría participar?';
+    const message = template.replaceAll('{{nombre}}', customer.nombre || '').replaceAll('{{rifa}}', raffleTitle);
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+};
+
+window.exportCustomerDatabase = function() {
+    if (currentProfile?.rol !== 'admin') return;
+    const rows = [['Nombre', 'Celular', 'Acepta novedades WhatsApp', 'Fecha autorización', 'Última compra', 'Compras registradas']];
+    Object.values(customerDatabase).forEach(customer => {
+        const count = Object.values(customer.compras || {}).reduce((sum, rafflePurchases) => sum + Object.keys(rafflePurchases || {}).length, 0);
+        rows.push([customer.nombre || '', customer.celular || '', customer.marketingOptIn === true ? 'Sí' : 'No', customer.consentimientoFecha || '', customer.ultimaCompra || '', String(count)]);
+    });
+    const csv = '\ufeff' + rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    link.download = 'base-clientes-rifacontrol.csv';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+};
+
+window.importExistingSalesToCustomerDatabase = async function() {
+    if (currentProfile?.rol !== 'admin') return;
+    if (!confirm('Se agregarán a la base los clientes de las rifas existentes. Las ventas anteriores quedarán sin autorización para novedades hasta que el cliente la confirme. ¿Continuar?')) return;
+    try {
+        const snapshot = await db.ref('rifas').once('value');
+        const raffles = snapshot.val() || {};
+        const updates = {};
+        let imported = 0;
+        Object.entries(raffles).forEach(([raffleId, raffle]) => {
+            Object.entries(raffle.ventas || {}).forEach(([saleId, sale]) => {
+                const phoneKey = normalizeCustomerPhone(sale.phone);
+                if (!phoneKey || !sale.name) return;
+                const base = `contactos/${phoneKey}`;
+                const previous = customerDatabase[phoneKey] || {};
+                updates[`${base}/nombre`] = sale.name;
+                updates[`${base}/celular`] = sale.phone;
+                updates[`${base}/actualizado`] = new Date().toISOString();
+                updates[`${base}/ultimaCompra`] = sale.date || new Date().toISOString();
+                updates[`${base}/compras/${raffleId}/${saleId}`] = { rifa: raffle.config?.title || 'Rifa', numeros: sale.numbers || [], fecha: sale.date || '', estado: sale.status || 'Sin estado' };
+                if (previous.marketingOptIn !== true && previous.marketingOptIn !== false) updates[`${base}/marketingOptIn`] = false;
+                imported++;
+            });
+        });
+        if (imported) await db.ref().update(updates);
+        const refreshed = await db.ref('contactos').once('value');
+        customerDatabase = refreshed.val() || {};
+        renderCustomerDatabase();
+        showAlert('Base actualizada', `Se procesaron ${imported} registros de compra. Las ventas anteriores no se marcaron como autorizadas para mensajes promocionales.`);
+    } catch (error) {
+        showAlert('No se pudo importar el historial', error.message);
+    }
+};
+
 // Data Processing
 function buildTakenNumbersMap() {
     takenNumbers = {};
@@ -1370,6 +1546,8 @@ function setupEventListeners() {
 
     if(searchClient) searchClient.addEventListener('input', renderClientsList);
     if(filterStatus) filterStatus.addEventListener('change', renderClientsList);
+    document.getElementById('customer-db-search')?.addEventListener('input', renderCustomerDatabase);
+    document.getElementById('customer-db-filter')?.addEventListener('change', renderCustomerDatabase);
 
     // Quick number search
     if(quickSearchNumber) {
@@ -1425,7 +1603,7 @@ function setupEventListeners() {
     }
 }
 
-function handleSaleSubmit(e) {
+async function handleSaleSubmit(e) {
     e.preventDefault();
     if(!salesRef || !currentUser || !['admin','vendedor'].includes(currentProfile?.rol) || raffleIndex[currentRaffleId]?.meta?.estado === 'archivada') {
         showAlert("¡Error de red!", "Firebase no se pudo conectar. Verifica tu internet.");
@@ -1435,6 +1613,7 @@ function handleSaleSubmit(e) {
     const name = document.getElementById('client-name').value.trim();
     const phone = document.getElementById('client-phone').value.trim();
     const status = document.getElementById('sale-status').value;
+    const marketingConsent = document.getElementById('client-marketing-consent').checked;
     const existingSale = editModeId ? salesData.find(sale => sale.id === editModeId) : null;
     
     let pack = configData && configData.numbersPerTicket ? configData.numbersPerTicket : 3;
@@ -1520,7 +1699,7 @@ function handleSaleSubmit(e) {
 
     if(editModeId) {
         // Actualizar datos en Firebase
-        salesRef.child(editModeId).update({
+        const saleUpdate = {
             name,
             phone,
             numbers: numsToAssign,
@@ -1532,14 +1711,23 @@ function handleSaleSubmit(e) {
             paymentDueDate,
             paidAt: effectiveStatus === 'Pagado' ? (existingSale?.paidAt || now) : null,
             updatedBy: currentUser.uid
-        });
-        
+        };
+        if (marketingConsent) {
+            saleUpdate.marketingOptIn = true;
+            saleUpdate.marketingConsentDate = now;
+        }
+        await salesRef.child(editModeId).update(saleUpdate);
+        try {
+            await saveCustomerPurchase(editModeId, { ...existingSale, ...saleUpdate, date: existingSale.date || now }, marketingConsent);
+        } catch (error) {
+            showAlert('Venta guardada; falta habilitar la base de clientes', `Firebase no permitió guardar el contacto: ${error.message}. El administrador debe publicar las reglas de database.rules.json en Realtime Database.`);
+        }
         editModeId = null;
         document.querySelector('#sale-form button[type="submit"]').innerHTML = '<i class="ph ph-floppy-disk"></i> Guardar Registro';
         document.querySelector('#view-registro h2').textContent = 'Nueva Venta';
     } else {
         // Guardar uno nuevo en Firebase
-        salesRef.push({
+        const saleRecord = {
             name,
             phone,
             numbers: numsToAssign,
@@ -1551,12 +1739,21 @@ function handleSaleSubmit(e) {
             date: now,
             paymentDueDate,
             paidAt: effectiveStatus === 'Pagado' ? now : null,
-            createdBy: currentUser.uid
-        });
+            createdBy: currentUser.uid,
+            ...(marketingConsent ? { marketingOptIn: true, marketingConsentDate: now } : {})
+        };
+        const newSaleRef = salesRef.push();
+        await newSaleRef.set(saleRecord);
+        try {
+            await saveCustomerPurchase(newSaleRef.key, { ...saleRecord, date: now }, marketingConsent);
+        } catch (error) {
+            showAlert('Venta guardada; falta habilitar la base de clientes', `Firebase no permitió guardar el contacto: ${error.message}. El administrador debe publicar las reglas de database.rules.json en Realtime Database.`);
+        }
     }
 
     // Limpiar formulario y navegar al tablero
     saleForm.reset();
+    document.getElementById('client-marketing-consent').checked = false;
     updatePaymentDueDateField();
     document.querySelector('.nav-item[data-target="view-dashboard"]').click();
 }
@@ -1950,6 +2147,7 @@ window.editSale = function(id) {
         editModeId = id;
         document.getElementById('client-name').value = sale.name;
         document.getElementById('client-phone').value = sale.phone;
+        document.getElementById('client-marketing-consent').checked = false;
         document.getElementById('sale-status').value = getSaleStatus(sale);
         document.getElementById('payment-due-date').value = sale.paymentDueDate || '';
         updatePaymentDueDateField();
