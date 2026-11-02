@@ -747,7 +747,7 @@ body {
                         <input type="text" id="config-consolation" placeholder="Ej: $100.000 (El que se acerque, gana)" required>
                     </div>
                     <div class="form-group" style="margin-bottom: 15px;">
-                        <label for="config-price">Valor del Puesto</label>
+                        <label for="config-price">Valor por boleta (número)</label>
                         <input type="text" id="config-price" placeholder="Ej: $15.000" required>
                     </div>
                     <div class="form-group" style="margin-bottom: 15px;">
@@ -1014,6 +1014,7 @@ function activateRaffle(id) {
     salesRef.on('value', snapshot => {
         const data = snapshot.val() || {};
         salesData = Object.keys(data).map(key => ({ id: key, ...data[key] })).sort((a,b) => new Date(b.date)-new Date(a.date));
+        reconcileSaleTotals();
         buildTakenNumbersMap(); renderGrid(); updateStats(); renderClientsList();
     }, error => showAlert('Error de Firebase', 'No se pudieron leer las ventas: ' + error.message));
     setupDynamicForm(); renderGrid(); updateStats(); updateBanner();
@@ -1241,36 +1242,6 @@ function handleSaleSubmit(e) {
     const phone = document.getElementById('client-phone').value.trim();
     const status = document.getElementById('sale-status').value;
     const existingSale = editModeId ? salesData.find(sale => sale.id === editModeId) : null;
-    const totalAmount = existingSale ? getSaleTotalAmount(existingSale) : parseMoneyAmount(configData?.price);
-    let payments = Array.isArray(existingSale?.payments) ? [...existingSale.payments] : [];
-    let paidAmount = getSalePaidAmount(existingSale);
-    const now = new Date().toISOString();
-
-    if (!existingSale && status === 'Abonado') {
-        paidAmount = Number(document.getElementById('initial-payment-amount').value) || 0;
-        if (paidAmount <= 0 || (totalAmount > 0 && paidAmount >= totalAmount)) {
-            showAlert('Abono inválido', 'El abono debe ser mayor que cero y menor que el valor total del puesto.');
-            return;
-        }
-        payments.push({ amount: paidAmount, date: now });
-    } else if (!existingSale && status === 'Pagado') {
-        paidAmount = totalAmount;
-        if (paidAmount > 0) payments.push({ amount: paidAmount, date: now });
-    } else if (existingSale && status === 'Pagado' && totalAmount > paidAmount) {
-        const remainingPayment = totalAmount - paidAmount;
-        payments.push({ amount: remainingPayment, date: now });
-        paidAmount = totalAmount;
-    }
-
-    const effectiveStatus = totalAmount > 0 && paidAmount >= totalAmount
-        ? 'Pagado'
-        : paidAmount > 0 ? 'Abonado' : status;
-    const paymentDueDate = effectiveStatus === 'Pagado' ? null : document.getElementById('payment-due-date').value;
-
-    if (effectiveStatus !== 'Pagado' && !paymentDueDate) {
-        showAlert('Falta la fecha de pago', 'Para una venta pendiente o abonada, indica la fecha límite de pago.');
-        return;
-    }
     
     let pack = configData && configData.numbersPerTicket ? configData.numbersPerTicket : 3;
     let numsToAssign = [];
@@ -1291,6 +1262,44 @@ function handleSaleSubmit(e) {
 
     if(numsToAssign.length === 0) {
         showAlert('¡Error!', 'Debes ingresar al menos el Número 1.');
+        return;
+    }
+
+    const unitPrice = Number(existingSale?.unitPrice) > 0 ? Number(existingSale.unitPrice) : parseMoneyAmount(configData?.price);
+    const totalAmount = unitPrice * numsToAssign.length;
+    if (!unitPrice || !Number.isSafeInteger(totalAmount)) {
+        showAlert('Precio inválido', 'Revisa el valor configurado por boleta antes de guardar la venta.');
+        return;
+    }
+
+    let payments = Array.isArray(existingSale?.payments) ? [...existingSale.payments] : [];
+    let paidAmount = getSalePaidAmount(existingSale);
+    const now = new Date().toISOString();
+
+    if (!existingSale && status === 'Abonado') {
+        paidAmount = Number(document.getElementById('initial-payment-amount').value) || 0;
+        if (paidAmount <= 0 || paidAmount >= totalAmount) {
+            showAlert('Abono inválido', `El abono debe ser mayor que cero y menor que el total de ${formatCOP(totalAmount)}.`);
+            return;
+        }
+        payments.push({ amount: paidAmount, date: now });
+    } else if (!existingSale && status === 'Pagado') {
+        paidAmount = totalAmount;
+        payments.push({ amount: paidAmount, date: now });
+    } else if (existingSale && status === 'Pagado' && totalAmount > paidAmount) {
+        const remainingPayment = totalAmount - paidAmount;
+        payments.push({ amount: remainingPayment, date: now });
+        paidAmount = totalAmount;
+    }
+
+    const effectiveStatus = paidAmount >= totalAmount ? 'Pagado' : paidAmount > 0 ? 'Abonado' : status;
+    const paymentDueDate = effectiveStatus === 'Pagado' ? null : document.getElementById('payment-due-date').value;
+    if (effectiveStatus !== 'Pagado' && !paymentDueDate) {
+        if (status === 'Pagado') {
+            document.getElementById('sale-status').value = 'Abonado';
+            updatePaymentDueDateField();
+        }
+        showAlert('Falta la fecha de pago', 'El total supera lo abonado. Indica la fecha límite de pago para el saldo pendiente.');
         return;
     }
 
@@ -1323,6 +1332,7 @@ function handleSaleSubmit(e) {
             numbers: numsToAssign,
             status: effectiveStatus,
             totalAmount,
+            unitPrice,
             paidAmount,
             payments,
             paymentDueDate,
@@ -1341,6 +1351,7 @@ function handleSaleSubmit(e) {
             numbers: numsToAssign,
             status: effectiveStatus,
             totalAmount,
+            unitPrice,
             paidAmount,
             payments,
             date: now,
@@ -1377,8 +1388,34 @@ function parseMoneyAmount(value) {
 }
 
 function getSaleTotalAmount(sale) {
+    const unitPrice = Number(sale?.unitPrice);
+    const quantity = Array.isArray(sale?.numbers) ? sale.numbers.length : 0;
+    if (Number.isFinite(unitPrice) && unitPrice > 0 && quantity > 0) return unitPrice * quantity;
     const saved = Number(sale?.totalAmount);
     return Number.isFinite(saved) && saved > 0 ? saved : parseMoneyAmount(configData?.price);
+}
+
+function reconcileSaleTotals() {
+    if (!salesRef || !configData) return;
+    const unitPrice = parseMoneyAmount(configData.price);
+    if (!unitPrice) return;
+    const updates = {};
+    salesData.forEach(sale => {
+        if (Number(sale.unitPrice) > 0 || !Array.isArray(sale.numbers) || !sale.numbers.length) return;
+        const oldTotal = Number(sale.totalAmount) || unitPrice;
+        // Antes, el sistema guardaba el precio de una boleta como total aunque
+        // la venta tuviera varios números.
+        if (sale.numbers.length > 1 && oldTotal > unitPrice) return;
+        updates[`${sale.id}/unitPrice`] = unitPrice;
+        updates[`${sale.id}/totalAmount`] = unitPrice * sale.numbers.length;
+        // Conserva el valor realmente registrado como pagado en los registros antiguos.
+        if (!Number.isFinite(Number(sale.paidAmount)) && sale.status === 'Pagado') {
+            updates[`${sale.id}/paidAmount`] = oldTotal;
+        }
+    });
+    if (Object.keys(updates).length) salesRef.update(updates).catch(error => {
+        console.error('No se pudieron actualizar los totales antiguos:', error);
+    });
 }
 
 function getSalePaidAmount(sale) {
@@ -1944,7 +1981,9 @@ window.sendWhatsApp = function(id) {
             msg += `¡Hola ${sale.name}!\n\nHas adquirido tu puesto para la *${configData?.title || 'Rifa Millonaria'}*.\n\n`;
             msg += `*Premio Mayor:* ${configData?.prize || '-'}\n`;
             msg += `*Consolación:* ${configData?.consolation || '-'}\n`;
-            msg += `*Valor:* ${configData?.price || '-'}\n`;
+            msg += `*Valor por boleta:* ${formatCOP(Number(sale.unitPrice) || parseMoneyAmount(configData?.price))}\n`;
+            msg += `*Valor total por ${sale.numbers.length} ${sale.numbers.length === 1 ? 'boleta' : 'boletas'}:* ${formatCOP(getSaleTotalAmount(sale))}\n`;
+            if (saleStatus !== 'Pagado') msg += `*Saldo pendiente:* ${formatCOP(getSaleBalance(sale))}\n`;
             msg += `*Llave Bre-B para pagos:* 3004431074\n`;
             msg += `*Fecha del Sorteo:* ${configData?.date || '-'}\n`;
             msg += `*Lotería:* ${configData?.lottery || '-'}\n`;
@@ -2117,4 +2156,3 @@ document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
-
