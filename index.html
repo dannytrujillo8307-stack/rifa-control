@@ -521,13 +521,13 @@ body {
 <body>
     <section id="auth-gate" style="max-width:480px;margin:10vh auto;padding:24px;background:#1e293b;border-radius:20px;display:none;">
         <h1 style="margin-bottom:8px">RifaControl</h1>
-        <p id="auth-message" style="color:#94a3b8;margin-bottom:18px">Inicia sesión para acceder a tus rifas.</p>
+        <p id="auth-message" style="color:#94a3b8;margin-bottom:18px">Inicia sesión. Si eres nuevo, crea una cuenta; la cuenta principal se activa como administradora.</p>
         <form id="auth-form" style="display:grid;gap:12px">
             <input id="auth-email" type="email" autocomplete="email" placeholder="Correo electrónico" required style="padding:14px;border-radius:8px">
             <input id="auth-password" type="password" autocomplete="current-password" placeholder="Contraseña (mínimo 6 caracteres)" minlength="6" required style="padding:14px;border-radius:8px">
             <button class="btn-primary" id="auth-submit" type="submit">Iniciar sesión</button>
         </form>
-        <button id="auth-mode" class="btn-secondary" style="margin-top:12px;width:100%">Solicitar acceso como vendedor</button>
+        <button id="auth-mode" class="btn-secondary" style="margin-top:12px;width:100%">Crear cuenta / solicitar acceso</button>
         <small style="display:block;color:#94a3b8;margin-top:12px">El administrador debe aprobar las cuentas de vendedor antes de permitirles entrar.</small>
     </section>
     <div class="app-container">
@@ -872,8 +872,8 @@ function init() {
     document.getElementById('auth-mode').addEventListener('click', () => {
         authSignupMode = !authSignupMode;
         document.getElementById('auth-submit').textContent = authSignupMode ? 'Crear cuenta y solicitar acceso' : 'Iniciar sesión';
-        document.getElementById('auth-mode').textContent = authSignupMode ? 'Ya tengo cuenta' : 'Solicitar acceso como vendedor';
-        document.getElementById('auth-message').textContent = authSignupMode ? 'Crea una cuenta. El administrador revisará tu solicitud.' : 'Inicia sesión para acceder a tus rifas.';
+        document.getElementById('auth-mode').textContent = authSignupMode ? 'Ya tengo cuenta' : 'Crear cuenta / solicitar acceso';
+        document.getElementById('auth-message').textContent = authSignupMode ? 'Verifica tu correo. La cuenta principal se activa como administradora; las demás quedan pendientes de aprobación.' : 'Inicia sesión. Si eres nuevo, crea una cuenta; la cuenta principal se activa como administradora.';
     });
     document.getElementById('raffle-picker').addEventListener('change', event => activateRaffle(event.target.value));
     auth.onAuthStateChanged(handleAuthState);
@@ -890,10 +890,10 @@ async function handleAuthSubmit(event) {
             const credential = await auth.createUserWithEmailAndPassword(email, password);
             await credential.user.sendEmailVerification();
             await auth.signOut();
-            document.getElementById('auth-message').textContent = 'Te enviamos un correo para verificar la cuenta. Después de verificarla, inicia sesión para solicitar aprobación.';
+            document.getElementById('auth-message').textContent = 'Te enviamos el enlace de verificación. Después, inicia sesión: la cuenta principal tendrá acceso de administrador y las demás quedarán pendientes de aprobación.';
             authSignupMode = false;
             document.getElementById('auth-submit').textContent = 'Iniciar sesión';
-            document.getElementById('auth-mode').textContent = 'Solicitar acceso como vendedor';
+            document.getElementById('auth-mode').textContent = 'Crear cuenta / solicitar acceso';
             return;
         }
         const credential = await auth.signInWithEmailAndPassword(email, password);
