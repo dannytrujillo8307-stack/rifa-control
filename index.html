@@ -578,9 +578,14 @@ body {
                             <input type="file" id="cover-image" accept="image/*" style="max-width: 220px; font-size: 13px; color: white; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 6px;">
                             <small id="cover-image-status" style="color:var(--text-muted);">La portada se guarda en esta rifa.</small>
                         </div>
-                        <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: #ef4444; color: white; height: 100%; align-self: flex-end;" onclick="exportPDF()">
-                            <i class="ph ph-file-pdf"></i> Exportar PDF
-                        </button>
+                        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
+                            <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: #0f9f6e; color: white; height: 100%;" onclick="downloadMarkedImage()">
+                                <i class="ph ph-image"></i> Descargar imagen marcada
+                            </button>
+                            <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: #ef4444; color: white; height: 100%;" onclick="exportPDF()">
+                                <i class="ph ph-file-pdf"></i> Exportar PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
@@ -1880,10 +1885,10 @@ async function createMarkedCoverImage() {
 
     // La plantilla navideña adjunta tiene una cuadrícula de 00 a 99 en la parte inferior.
     if (Number(configData?.raffleSize) === 100 && Math.abs(image.naturalWidth / image.naturalHeight - 2 / 3) < 0.025) {
-        const left = image.naturalWidth * 0.015;
+        const left = image.naturalWidth * 0.024;
         const top = image.naturalHeight * 0.535;
-        const gridWidth = image.naturalWidth * 0.970;
-        const gridHeight = image.naturalHeight * 0.384;
+        const gridWidth = image.naturalWidth * 0.952;
+        const gridHeight = image.naturalHeight * 0.378;
         const cellWidth = gridWidth / 10;
         const cellHeight = gridHeight / 10;
         ctx.globalAlpha = 0.42;
@@ -1896,12 +1901,31 @@ async function createMarkedCoverImage() {
             const column = number % 10;
             const row = Math.floor(number / 10);
             ctx.fillStyle = color;
-            ctx.fillRect(left + column * cellWidth + 2, top + row * cellHeight + 2, cellWidth - 4, cellHeight - 4);
+            const insetX = Math.max(2, cellWidth * 0.035);
+            const insetY = Math.max(2, cellHeight * 0.06);
+            ctx.fillRect(left + column * cellWidth + insetX, top + row * cellHeight + insetY, cellWidth - insetX * 2, cellHeight - insetY * 2);
         }
         ctx.globalAlpha = 1;
     }
-    return canvas.toDataURL('image/jpeg', 0.94);
+    return canvas.toDataURL('image/png');
 }
+
+window.downloadMarkedImage = async function() {
+    if (!currentCoverImage) {
+        showAlert('Falta la portada', 'Carga la imagen de la rifa para poder descargarla con los números marcados.');
+        return;
+    }
+    try {
+        const markedImage = await createMarkedCoverImage();
+        const link = document.createElement('a');
+        const title = (configData?.title || 'Rifa').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+        link.download = `${title}-numeros-marcados.png`;
+        link.href = markedImage;
+        link.click();
+    } catch (error) {
+        showAlert('No se pudo preparar la imagen', error.message);
+    }
+};
 
 window.exportPDF = async function() {
     const { jsPDF } = window.jspdf;
@@ -1931,8 +1955,10 @@ window.exportPDF = async function() {
         const xOffset = (pdfWidth - finalWidth) / 2;
         const yOffset = (pdfHeight - finalHeight) / 2;
         
-        // La portada se normaliza a JPEG al guardarla; así también se incrustan los marcadores.
-        doc.addImage(imgData, 'JPEG', xOffset, yOffset, finalWidth, finalHeight);
+        // El cartel marcado es el contenido completo del PDF cuando hay una portada cargada.
+        doc.addImage(imgData, 'PNG', xOffset, yOffset, finalWidth, finalHeight);
+        doc.save("Carton_Rifa_Marcado.pdf");
+        return;
     } else {
         // Página 1: Portada por Defecto
         doc.setFontSize(28);
@@ -2273,3 +2299,4 @@ document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
+
