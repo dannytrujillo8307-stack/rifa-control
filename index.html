@@ -572,18 +572,24 @@ body {
                         <h2>Panel de Números</h2>
                         <p id="panel-subtitle">Del 000 al 999</p>
                     </div>
-                    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: rgba(0,0,0,0.2); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                            <label for="cover-image" style="font-size: 12px; color: var(--text-muted); font-weight: 600;">IMAGEN/PORTADA</label>
-                            <input type="file" id="cover-image" accept="image/*" style="max-width: 220px; font-size: 13px; color: white; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 6px;">
-                            <small id="cover-image-status" style="color:var(--text-muted);">La portada se guarda en esta rifa.</small>
+                    <div style="display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; background:rgba(0,0,0,0.2); padding:10px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05);">
+                        <div style="display:flex; flex-direction:column; gap:5px; min-width:230px;">
+                            <label for="cover-image" style="font-size:12px; color:var(--text-muted); font-weight:600;">PORTADA PROMOCIONAL</label>
+                            <input type="file" id="cover-image" accept="image/*" style="max-width:260px; font-size:13px; color:white; background:#0f172a; border:1px solid #334155; border-radius:4px; padding:6px;">
+                            <small id="cover-image-status" style="color:var(--text-muted);">Se muestra en la información de la rifa.</small>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:5px; min-width:250px;">
+                            <label for="ticket-image" style="font-size:12px; color:var(--text-muted); font-weight:600;">IMAGEN DEL TALONARIO (00–99)</label>
+                            <input type="file" id="ticket-image" accept="image/*" style="max-width:280px; font-size:13px; color:white; background:#0f172a; border:1px solid #334155; border-radius:4px; padding:6px;">
+                            <small id="ticket-image-status" style="color:var(--text-muted);">Carga aquí la imagen vertical con la cuadrícula.</small>
+                            <img id="ticket-image-preview" alt="Vista previa del talonario" style="display:none; max-width:84px; max-height:110px; object-fit:contain; border:1px solid #475569; border-radius:6px;">
                         </div>
                         <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                            <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: #0f9f6e; color: white; height: 100%;" onclick="downloadMarkedImage()">
-                                <i class="ph ph-image"></i> Descargar imagen marcada
+                            <button class="btn-primary" style="padding:10px 16px; font-size:14px; margin-top:0; background-color:#0f9f6e; color:white;" onclick="downloadMarkedImage()">
+                                <i class="ph ph-image"></i> Descargar talonario marcado
                             </button>
-                            <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: #ef4444; color: white; height: 100%;" onclick="exportPDF()">
-                                <i class="ph ph-file-pdf"></i> Exportar PDF
+                            <button class="btn-primary" style="padding:10px 16px; font-size:14px; margin-top:0; background-color:#ef4444; color:white;" onclick="exportPDF()">
+                                <i class="ph ph-file-pdf"></i> Exportar talonario PDF
                             </button>
                         </div>
                     </div>
@@ -839,6 +845,7 @@ let currentRaffleId = null;
 let raffleIndex = {};
 let authSignupMode = false;
 let currentCoverImage = null;
+let currentTicketImage = null;
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -1017,11 +1024,17 @@ function activateRaffle(id) {
     if (archiveButton && currentProfile?.rol === 'admin') archiveButton.innerHTML = isArchived ? '<i class="ph ph-arrow-counter-clockwise"></i> Reabrir esta rifa' : '<i class="ph ph-archive"></i> Cerrar esta rifa y conservar ventas';
     document.getElementById('config-modal').classList.remove('show');
     currentCoverImage = null;
+    currentTicketImage = null;
     document.getElementById('cover-image').value = '';
+    document.getElementById('ticket-image').value = '';
     document.getElementById('cover-image').disabled = currentProfile?.rol !== 'admin' || isArchived;
+    document.getElementById('ticket-image').disabled = currentProfile?.rol !== 'admin' || isArchived;
     setCoverImagePreview(null);
+    setTicketImagePreview(null);
     document.getElementById('cover-image-status').textContent = 'Cargando portada de esta rifa…';
+    document.getElementById('ticket-image-status').textContent = 'Cargando talonario de esta rifa…';
     loadCoverImage(id);
+    loadTicketImage(id);
     if (window.activeSalesListener) window.activeSalesListener.off();
     window.activeSalesListener = salesRef;
     salesRef.on('value', snapshot => {
@@ -1063,6 +1076,32 @@ function loadCoverImage(raffleId) {
     });
 }
 
+function setTicketImagePreview(dataUrl) {
+    const preview = document.getElementById('ticket-image-preview');
+    if (!preview) return;
+    if (dataUrl) {
+        preview.src = dataUrl;
+        preview.style.display = 'block';
+    } else {
+        preview.removeAttribute('src');
+        preview.style.display = 'none';
+    }
+}
+
+function loadTicketImage(raffleId) {
+    db.ref(`rifas/${raffleId}/meta/ticketImage`).once('value').then(snapshot => {
+        if (currentRaffleId !== raffleId) return;
+        currentTicketImage = snapshot.val() || null;
+        setTicketImagePreview(currentTicketImage);
+        document.getElementById('ticket-image-status').textContent = currentTicketImage
+            ? 'Talonario guardado. Se usará para marcar y exportar.'
+            : 'Aún no hay un talonario guardado.';
+    }).catch(error => {
+        if (currentRaffleId !== raffleId) return;
+        document.getElementById('ticket-image-status').textContent = 'No se pudo cargar el talonario: ' + error.message;
+    });
+}
+
 function compressCoverImage(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1076,7 +1115,8 @@ function compressCoverImage(file) {
                 canvas.width = Math.max(1, Math.round(image.width * scale));
                 canvas.height = Math.max(1, Math.round(image.height * scale));
                 canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+                let dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                if (dataUrl.length > 1800000) dataUrl = canvas.toDataURL('image/jpeg', 0.82);
                 if (dataUrl.length > 1800000) {
                     reject(new Error('La imagen sigue siendo muy pesada. Prueba con otra de menor tamaño.'));
                     return;
@@ -1115,6 +1155,46 @@ async function saveCoverImage(file) {
         }
     } catch (error) {
         status.textContent = 'No se guardó la portada: ' + error.message;
+    } finally {
+        input.disabled = currentProfile?.rol !== 'admin' || raffleIndex[currentRaffleId]?.meta?.estado === 'archivada';
+    }
+}
+
+async function saveTicketImage(file) {
+    const status = document.getElementById('ticket-image-status');
+    const input = document.getElementById('ticket-image');
+    if (currentProfile?.rol !== 'admin' || !currentRaffleId) {
+        status.textContent = 'Solo el administrador puede cambiar el talonario.';
+        input.value = '';
+        return;
+    }
+    if (!file.type.startsWith('image/')) {
+        status.textContent = 'Selecciona una imagen del talonario.';
+        input.value = '';
+        return;
+    }
+    input.disabled = true;
+    status.textContent = 'Optimizando y guardando el talonario…';
+    try {
+        const raffleId = currentRaffleId;
+        const dataUrl = await compressCoverImage(file);
+        const image = await new Promise((resolve, reject) => {
+            const candidate = new Image();
+            candidate.onload = () => resolve(candidate);
+            candidate.onerror = () => reject(new Error('No se pudo leer la plantilla seleccionada.'));
+            candidate.src = dataUrl;
+        });
+        if (Number(configData?.raffleSize) !== 100 || Math.abs(image.naturalWidth / image.naturalHeight - 2 / 3) >= 0.025) {
+            throw new Error('Selecciona el talonario vertical que trae las 100 casillas del 00 al 99. La portada promocional se carga en el campo de arriba.');
+        }
+        await db.ref(`rifas/${raffleId}/meta/ticketImage`).set(dataUrl);
+        if (currentRaffleId === raffleId) {
+            currentTicketImage = dataUrl;
+            setTicketImagePreview(dataUrl);
+            status.textContent = 'Talonario guardado en Firebase para esta rifa.';
+        }
+    } catch (error) {
+        status.textContent = 'No se guardó el talonario: ' + error.message;
     } finally {
         input.disabled = currentProfile?.rol !== 'admin' || raffleIndex[currentRaffleId]?.meta?.estado === 'archivada';
     }
@@ -1244,6 +1324,14 @@ function setupEventListeners() {
         coverInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file) await saveCoverImage(file);
+        });
+    }
+
+    const ticketInput = document.getElementById('ticket-image');
+    if(ticketInput) {
+        ticketInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) await saveTicketImage(file);
         });
     }
 
@@ -1869,22 +1957,25 @@ window.editSale = function(id) {
     }
 }
 
-async function createMarkedCoverImage() {
-    if (!currentCoverImage) return null;
+async function createMarkedTicketImage() {
+    if (!currentTicketImage) return null;
     const image = await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('No se pudo preparar la portada para el PDF.'));
-        img.src = currentCoverImage;
+        img.onerror = () => reject(new Error('No se pudo abrir la imagen del talonario.'));
+        img.src = currentTicketImage;
     });
+    if (Number(configData?.raffleSize) !== 100 || Math.abs(image.naturalWidth / image.naturalHeight - 2 / 3) >= 0.025) {
+        throw new Error('Para marcar este talonario, carga la plantilla vertical con la cuadrícula del 00 al 99 y usa una rifa de 100 números.');
+    }
     const canvas = document.createElement('canvas');
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
     const ctx = canvas.getContext('2d');
     ctx.drawImage(image, 0, 0);
 
-    // La plantilla navideña adjunta tiene una cuadrícula de 00 a 99 en la parte inferior.
-    if (Number(configData?.raffleSize) === 100 && Math.abs(image.naturalWidth / image.naturalHeight - 2 / 3) < 0.025) {
+    // La plantilla vertical 00–99 ubica su cuadrícula en la parte inferior.
+    {
         const left = image.naturalWidth * 0.024;
         const top = image.naturalHeight * 0.535;
         const gridWidth = image.naturalWidth * 0.952;
@@ -1911,15 +2002,15 @@ async function createMarkedCoverImage() {
 }
 
 window.downloadMarkedImage = async function() {
-    if (!currentCoverImage) {
-        showAlert('Falta la portada', 'Carga la imagen de la rifa para poder descargarla con los números marcados.');
+    if (!currentTicketImage) {
+        showAlert('Falta el talonario', 'Carga la imagen del talonario con las casillas 00–99. La portada promocional se mantiene aparte.');
         return;
     }
     try {
-        const markedImage = await createMarkedCoverImage();
+        const markedImage = await createMarkedTicketImage();
         const link = document.createElement('a');
         const title = (configData?.title || 'Rifa').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
-        link.download = `${title}-numeros-marcados.png`;
+        link.download = `${title}-talonario-marcado.png`;
         link.href = markedImage;
         link.click();
     } catch (error) {
@@ -1928,11 +2019,16 @@ window.downloadMarkedImage = async function() {
 };
 
 window.exportPDF = async function() {
+    if (!currentTicketImage) {
+        showAlert('Falta el talonario', 'Carga la imagen del talonario con las casillas 00–99. La portada promocional no se usa para este archivo.');
+        return;
+    }
+    try {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
 
-    if (currentCoverImage) {
-        const imgData = await createMarkedCoverImage();
+    if (currentTicketImage) {
+        const imgData = await createMarkedTicketImage();
         
         const pdfWidth = doc.internal.pageSize.getWidth();
         const pdfHeight = doc.internal.pageSize.getHeight();
@@ -1955,9 +2051,9 @@ window.exportPDF = async function() {
         const xOffset = (pdfWidth - finalWidth) / 2;
         const yOffset = (pdfHeight - finalHeight) / 2;
         
-        // El cartel marcado es el contenido completo del PDF cuando hay una portada cargada.
+        // El talonario cargado, con los números marcados, es la página completa del PDF.
         doc.addImage(imgData, 'PNG', xOffset, yOffset, finalWidth, finalHeight);
-        doc.save("Carton_Rifa_Marcado.pdf");
+        doc.save("Talonario_Rifa_Marcado.pdf");
         return;
     } else {
         // Página 1: Portada por Defecto
@@ -2063,6 +2159,9 @@ window.exportPDF = async function() {
     }
     
     doc.save("Cartones_Rifa.pdf");
+    } catch (error) {
+        showAlert('No se pudo exportar el talonario', error.message);
+    }
 }
 
 window.sendWhatsApp = function(id) {
