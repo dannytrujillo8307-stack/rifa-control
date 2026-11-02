@@ -572,27 +572,6 @@ body {
                         <h2>Panel de Números</h2>
                         <p id="panel-subtitle">Del 000 al 999</p>
                     </div>
-                    <div style="display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; background:rgba(0,0,0,0.2); padding:10px; border-radius:var(--radius-sm); border:1px solid rgba(255,255,255,0.05);">
-                        <div style="display:flex; flex-direction:column; gap:5px; min-width:230px;">
-                            <label for="cover-image" style="font-size:12px; color:var(--text-muted); font-weight:600;">PORTADA PROMOCIONAL</label>
-                            <input type="file" id="cover-image" accept="image/*" style="max-width:260px; font-size:13px; color:white; background:#0f172a; border:1px solid #334155; border-radius:4px; padding:6px;">
-                            <small id="cover-image-status" style="color:var(--text-muted);">Se muestra en la información de la rifa.</small>
-                        </div>
-                        <div style="display:flex; flex-direction:column; gap:5px; min-width:250px;">
-                            <label for="ticket-image" style="font-size:12px; color:var(--text-muted); font-weight:600;">IMAGEN DEL TALONARIO (00–99)</label>
-                            <input type="file" id="ticket-image" accept="image/*" style="max-width:280px; font-size:13px; color:white; background:#0f172a; border:1px solid #334155; border-radius:4px; padding:6px;">
-                            <small id="ticket-image-status" style="color:var(--text-muted);">Carga aquí la imagen vertical con la cuadrícula.</small>
-                            <img id="ticket-image-preview" alt="Vista previa del talonario" style="display:none; max-width:84px; max-height:110px; object-fit:contain; border:1px solid #475569; border-radius:6px;">
-                        </div>
-                        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;">
-                            <button class="btn-primary" style="padding:10px 16px; font-size:14px; margin-top:0; background-color:#0f9f6e; color:white;" onclick="downloadMarkedImage()">
-                                <i class="ph ph-image"></i> Descargar talonario marcado
-                            </button>
-                            <button class="btn-primary" style="padding:10px 16px; font-size:14px; margin-top:0; background-color:#ef4444; color:white;" onclick="exportPDF()">
-                                <i class="ph ph-file-pdf"></i> Exportar talonario PDF
-                            </button>
-                        </div>
-                    </div>
                 </div>
                 
                 <div id="raffle-info-banner" style="display: flex; gap: 20px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
@@ -617,6 +596,38 @@ body {
 
                 <div class="numbers-grid" id="numbers-grid">
                     <!-- JS generated numbers 000-999 -->
+                </div>
+            </section>
+
+            <!-- SECTION: TALONARIO -->
+            <section id="view-ticket" class="view-section">
+                <div class="section-header">
+                    <h2>Talonario de la rifa</h2>
+                    <p>Carga las imágenes aquí y descárgalas con los números actualizados.</p>
+                </div>
+                <div class="glass-form" style="display:flex; flex-direction:column; gap:18px;">
+                    <p style="margin:0; color:var(--text-muted);">La plantilla del talonario se guarda para esta rifa. Cada descarga marca los números vendidos, abonados y separados según su estado actual.</p>
+                    <div class="form-row" style="align-items:flex-start;">
+                        <div class="form-group" style="min-width:240px;">
+                            <label for="cover-image">Portada promocional</label>
+                            <input type="file" id="cover-image" accept="image/*">
+                            <small id="cover-image-status" style="color:var(--text-muted);">Se muestra en la información de la rifa.</small>
+                        </div>
+                        <div class="form-group" style="min-width:260px;">
+                            <label for="ticket-image">Imagen del talonario (00–99)</label>
+                            <input type="file" id="ticket-image" accept="image/*">
+                            <small id="ticket-image-status" style="color:var(--text-muted);">Se carga una vez; cada exportación refleja las ventas actuales.</small>
+                            <img id="ticket-image-preview" alt="Vista previa del talonario" style="display:none; max-width:110px; max-height:150px; object-fit:contain; border:1px solid #475569; border-radius:6px;">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button class="btn-primary" style="padding:10px 16px; font-size:14px; margin-top:0; background-color:#0f9f6e; color:white;" onclick="downloadMarkedImage()">
+                            <i class="ph ph-image"></i> Descargar talonario marcado
+                        </button>
+                        <button class="btn-primary" style="padding:10px 16px; font-size:14px; margin-top:0; background-color:#ef4444; color:white;" onclick="exportPDF()">
+                            <i class="ph ph-file-pdf"></i> Exportar talonario PDF
+                        </button>
+                    </div>
                 </div>
             </section>
 
@@ -725,6 +736,10 @@ body {
             <button class="nav-item" data-target="view-clientes">
                 <i class="ph ph-address-book"></i>
                 <span>Clientes</span>
+            </button>
+            <button class="nav-item" data-target="view-ticket">
+                <i class="ph ph-ticket"></i>
+                <span>Talonario</span>
             </button>
         </nav>
 
@@ -1094,7 +1109,7 @@ function loadTicketImage(raffleId) {
         currentTicketImage = snapshot.val() || null;
         setTicketImagePreview(currentTicketImage);
         document.getElementById('ticket-image-status').textContent = currentTicketImage
-            ? 'Talonario guardado. Se usará para marcar y exportar.'
+            ? 'Talonario guardado. Cada exportación refleja las ventas actuales.'
             : 'Aún no hay un talonario guardado.';
     }).catch(error => {
         if (currentRaffleId !== raffleId) return;
@@ -1974,29 +1989,39 @@ async function createMarkedTicketImage() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(image, 0, 0);
 
-    // La plantilla vertical 00–99 ubica su cuadrícula en la parte inferior.
-    {
-        const left = image.naturalWidth * 0.024;
-        const top = image.naturalHeight * 0.535;
-        const gridWidth = image.naturalWidth * 0.952;
-        const gridHeight = image.naturalHeight * 0.378;
-        const cellWidth = gridWidth / 10;
-        const cellHeight = gridHeight / 10;
-        ctx.globalAlpha = 0.42;
-        for (let number = 0; number < 100; number++) {
-            const sale = takenNumbers[padNumber(number)];
-            if (!sale) continue;
-            const status = getSaleStatus(sale);
-            const color = status === 'Pagado' ? '#f43f5e' : status === 'Abonado' ? '#2563eb' : status === 'Separado' ? '#f59e0b' : null;
-            if (!color) continue;
-            const column = number % 10;
-            const row = Math.floor(number / 10);
-            ctx.fillStyle = color;
-            const insetX = Math.max(2, cellWidth * 0.035);
-            const insetY = Math.max(2, cellHeight * 0.06);
-            ctx.fillRect(left + column * cellWidth + insetX, top + row * cellHeight + insetY, cellWidth - insetX * 2, cellHeight - insetY * 2);
-        }
-        ctx.globalAlpha = 1;
+    // Bordes medidos sobre la plantilla vertical 00–99 enviada por el usuario.
+    const columnEdges = [26, 124, 221, 319, 416, 514, 611, 708, 805, 902, 999].map(x => x / 1024);
+    const rowEdges = [823, 885, 946, 1008, 1069, 1129, 1188, 1243, 1295, 1347, 1400].map(y => y / 1536);
+    const statusColors = { Pagado: '#15803d', Abonado: '#2563eb', Separado: '#dc2626' };
+    buildTakenNumbersMap();
+    for (let number = 0; number < 100; number++) {
+        const sale = takenNumbers[padNumber(number)];
+        if (!sale) continue;
+        const color = statusColors[getSaleStatus(sale)];
+        if (!color) continue;
+        const column = number % 10;
+        const row = Math.floor(number / 10);
+        const left = image.naturalWidth * columnEdges[column];
+        const top = image.naturalHeight * rowEdges[row];
+        const cellWidth = image.naturalWidth * (columnEdges[column + 1] - columnEdges[column]);
+        const cellHeight = image.naturalHeight * (rowEdges[row + 1] - rowEdges[row]);
+        const insetX = Math.max(3, cellWidth * 0.07);
+        const insetY = Math.max(2, cellHeight * 0.09);
+        const markedX = left + insetX;
+        const markedY = top + insetY;
+        const markedWidth = cellWidth - insetX * 2;
+        const markedHeight = cellHeight - insetY * 2;
+
+        ctx.fillStyle = color;
+        ctx.fillRect(markedX, markedY, markedWidth, markedHeight);
+        ctx.font = `900 ${Math.min(markedHeight * 0.58, markedWidth * 0.38)}px Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineWidth = Math.max(1, markedHeight * 0.025);
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.28)';
+        ctx.strokeText(padNumber(number), left + cellWidth / 2, top + cellHeight / 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(padNumber(number), left + cellWidth / 2, top + cellHeight / 2);
     }
     return canvas.toDataURL('image/png');
 }
