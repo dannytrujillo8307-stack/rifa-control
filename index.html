@@ -832,7 +832,6 @@ let currentProfile = null;
 let currentRaffleId = null;
 let raffleIndex = {};
 let authSignupMode = false;
-const OWNER_EMAIL = 'dannytrujillo8307@gmail.com';
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -926,12 +925,15 @@ async function handleAuthState(user) {
         const profileRef = db.ref(`usuarios/${user.uid}`);
         let snap = await profileRef.once('value');
         let profile = snap.val();
-        if (!profile && user.email.toLowerCase() === OWNER_EMAIL) {
-            profile = { email: user.email, nombre: user.displayName || user.email, rol: 'admin', activo: true, creado: firebase.database.ServerValue.TIMESTAMP };
-            await profileRef.set(profile);
-        } else if (!profile) {
-            profile = { email: user.email, nombre: user.displayName || user.email, rol: 'pendiente', activo: false, creado: firebase.database.ServerValue.TIMESTAMP };
-            await profileRef.set(profile);
+        if (!profile) {
+            const proposedAdmin = { email: user.email, nombre: user.displayName || user.email, rol: 'admin', activo: true, creado: firebase.database.ServerValue.TIMESTAMP };
+            try {
+                await profileRef.set(proposedAdmin);
+                profile = proposedAdmin;
+            } catch {
+                profile = { ...proposedAdmin, rol: 'pendiente', activo: false };
+                await profileRef.set(profile);
+            }
         }
         currentProfile = profile;
         if (profile.rol === 'pendiente' || !profile.activo) {
