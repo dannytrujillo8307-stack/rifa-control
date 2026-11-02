@@ -353,6 +353,8 @@ body {
     background: rgba(245, 158, 11, 0.15);
     color: var(--color-separado);
 }
+.status-chip.abonado { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.status-chip.liberado { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; }
 
 .client-nums {
     display: flex;
@@ -374,6 +376,12 @@ body {
     background: var(--color-separado);
     color: white;
 }
+.badge.abonado { background: #2563eb; color: white; }
+.badge.liberado { background: #64748b; color: white; }
+
+.client-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.client-actions .btn-delete { position: static; width: auto; min-height: 36px; height: auto; border-radius: 8px; padding: 7px 10px; font-size: 13px; gap: 5px; }
+.client-nums { padding-right: 0; }
 
 .btn-delete {
     position: absolute;
@@ -511,6 +519,17 @@ body {
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 </head>
 <body>
+    <section id="auth-gate" style="max-width:480px;margin:10vh auto;padding:24px;background:#1e293b;border-radius:20px;display:none;">
+        <h1 style="margin-bottom:8px">RifaControl</h1>
+        <p id="auth-message" style="color:#94a3b8;margin-bottom:18px">Inicia sesión para acceder a tus rifas.</p>
+        <form id="auth-form" style="display:grid;gap:12px">
+            <input id="auth-email" type="email" autocomplete="email" placeholder="Correo electrónico" required style="padding:14px;border-radius:8px">
+            <input id="auth-password" type="password" autocomplete="current-password" placeholder="Contraseña (mínimo 6 caracteres)" minlength="6" required style="padding:14px;border-radius:8px">
+            <button class="btn-primary" id="auth-submit" type="submit">Iniciar sesión</button>
+        </form>
+        <button id="auth-mode" class="btn-secondary" style="margin-top:12px;width:100%">Solicitar acceso como vendedor</button>
+        <small style="display:block;color:#94a3b8;margin-top:12px">El administrador debe aprobar las cuentas de vendedor antes de permitirles entrar.</small>
+    </section>
     <div class="app-container">
         <!-- Header -->
         <header class="app-header">
@@ -519,9 +538,15 @@ body {
                     <i class="ph ph-ticket"></i>
                     <h1>RifaControl</h1>
                 </div>
-                <button class="btn-secondary" style="width: auto; padding: 8px 12px; font-size: 14px; background: var(--bg-body); border: 1px solid rgba(255,255,255,0.1);" onclick="document.getElementById('winner-modal').classList.add('show')">
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+                <select id="raffle-picker" aria-label="Seleccionar rifa" style="max-width:170px;padding:8px;background:#0f172a;color:white;border:1px solid #334155;border-radius:8px"></select>
+                <button id="new-raffle-button" class="btn-secondary" style="display:none;width:auto;padding:8px 10px;font-size:13px" onclick="startNewRaffle()">+ Rifa</button>
+                <button id="admin-button" class="btn-secondary" style="display:none;width:auto;padding:8px 10px;font-size:13px" onclick="openAdminPanel()">Administrar</button>
+                <button id="signout-button" class="btn-secondary" style="width:auto;padding:8px 10px;font-size:13px" onclick="firebase.auth().signOut()">Salir</button>
+                <button class="btn-secondary" style="width:auto; padding: 8px 12px; font-size: 14px; background: var(--bg-body); border: 1px solid rgba(255,255,255,0.1);" onclick="document.getElementById('winner-modal').classList.add('show')">
                     <i class="ph ph-flag-checkered"></i> Finalizar Rifa
                 </button>
+                </div>
             </div>
             <!-- Stats Summary -->
             <div class="stats-summary">
@@ -532,7 +557,7 @@ body {
                     <span class="dot"></span> <span id="stat-vend">0</span> Vendidos
                 </div>
                 <div class="stat-pill separado">
-                    <span class="dot"></span> <span id="stat-sep">0</span> Separados
+                    <span class="dot"></span> <span id="stat-sep">0</span> Pendientes
                 </div>
             </div>
         </header>
@@ -610,13 +635,25 @@ body {
                         <select id="sale-status" required>
                             <option value="Pagado">💰 Pagado</option>
                             <option value="Separado">⏳ Separado</option>
+                            <option value="Abonado">💵 Abono parcial</option>
                         </select>
+                    </div>
+
+                    <div class="form-group" id="initial-payment-group" style="display: none;">
+                        <label for="initial-payment-amount">Valor del abono inicial</label>
+                        <input type="number" id="initial-payment-amount" min="1" step="1" placeholder="Ej: 5000">
+                    </div>
+
+                    <div class="form-group" id="payment-due-group" style="display: none;">
+                        <label for="payment-due-date">Fecha límite de pago</label>
+                        <input type="date" id="payment-due-date">
+                        <small style="color: var(--text-muted);">La venta aparecerá en los recordatorios cuando se acerque esta fecha.</small>
                     </div>
 
                     <button type="submit" class="btn-primary">
                         <i class="ph ph-floppy-disk"></i> Guardar Registro
                     </button>
-                    <p class="form-note">Los datos se guardarán localmente en tu dispositivo.</p>
+                    <p class="form-note">Los datos se sincronizan con Firebase cuando hay conexión a internet.</p>
                 </form>
             </section>
 
@@ -645,9 +682,16 @@ body {
                     <select id="filter-status" class="filter-select">
                         <option value="Todos">Todos</option>
                         <option value="Pagado">Pagados</option>
-                        <option value="Separado">Separados</option>
+                        <option value="Separado">Sin abonos</option>
+                        <option value="Abonado">Abonados</option>
+                        <option value="Liberado">Liberados</option>
+                        <option value="Vence hoy">Vencen hoy</option>
+                        <option value="Vencido">Vencidos</option>
+                        <option value="Proximos">Vencen en 3 días</option>
                     </select>
                 </div>
+
+                <div id="payment-reminder-summary" style="margin: 0 0 14px; color: var(--text-muted); font-size: 14px;"></div>
 
                 <div class="clients-list" id="clients-list">
                     <!-- JS generated clients -->
@@ -746,7 +790,7 @@ body {
             <div class="modal-content glass-card" style="text-align: center;">
                 <i class="ph ph-trophy modal-icon" style="color: #fbbf24;"></i>
                 <h3>Finalizar Rifa</h3>
-                <p>Ingresa el número ganador para generar el mensaje de anuncio. ¡También podrás resetear todo para una nueva rifa!</p>
+                <p>Ingresa el número ganador para preparar el anuncio por WhatsApp. Las ventas se conservan al cerrar esta rifa.</p>
                 <div class="form-group" style="text-align: left; margin-bottom: 15px;">
                     <label for="winner-number">Número Ganador</label>
                     <input type="text" id="winner-number" placeholder="Ej: 045">
@@ -754,16 +798,25 @@ body {
                 <button class="btn-primary" onclick="announceWinner()" style="width: 100%; margin-bottom: 15px;">
                     <i class="ph ph-whatsapp-logo"></i> Generar Anuncio de Ganador
                 </button>
-                <button class="btn-secondary" onclick="resetApp()" style="width: 100%; background: #ef4444; border-color: #ef4444; margin-bottom: 15px;">
-                    <i class="ph ph-trash"></i> Borrar Todo e Iniciar Nueva Rifa
+                <button id="archive-raffle-button" class="btn-secondary" onclick="archiveCurrentRaffle()" style="display:none;width: 100%; background: #ef4444; border-color: #ef4444; margin-bottom: 15px;">
+                    <i class="ph ph-archive"></i> Cerrar esta rifa y conservar ventas
                 </button>
                 <button class="btn-secondary" onclick="document.getElementById('winner-modal').classList.remove('show')">Cancelar</button>
+            </div>
+        </div>
+        <div id="admin-modal" class="modal-overlay">
+            <div class="modal-content glass-card" style="max-width:560px;max-height:85vh;overflow:auto">
+                <h3>Administrar vendedores</h3>
+                <p style="margin:8px 0 16px;color:var(--text-muted)">Las personas se registran desde la pantalla de acceso y quedan pendientes hasta que las apruebes.</p>
+                <div id="vendor-list"></div>
+                <button class="btn-secondary" style="width:100%;margin-top:14px" onclick="document.getElementById('admin-modal').classList.remove('show')">Cerrar</button>
             </div>
         </div>
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
     
     <script>
@@ -774,6 +827,12 @@ let salesData = [];
 let takenNumbers = {}; // Maps '005' -> sale object
 let editModeId = null; // ID de la venta siendo editada
 let configData = null; // Configuración global de la rifa
+let currentUser = null;
+let currentProfile = null;
+let currentRaffleId = null;
+let raffleIndex = {};
+let authSignupMode = false;
+const OWNER_EMAIL = 'dannytrujillo8307@gmail.com';
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -786,13 +845,12 @@ const firebaseConfig = {
   appId: "1:782169260958:web:d03f8e80fac0c719650c8f"
 };
 
-let db, salesRef, configRef;
+let db, salesRef, configRef, auth;
 
 try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    salesRef = db.ref('ventasRifa');
-    configRef = db.ref('configRifa');
+    auth = firebase.auth();
 } catch (e) {
     console.error("Firebase Init Error:", e);
     if(!firebase) {
@@ -809,82 +867,218 @@ const clientsListContainer = document.getElementById('clients-list');
 
 // Initialize App
 function init() {
-    if(!salesRef) {
-        setupEventListeners();
-        return;
-    }
-
-    // Escuchar cambios en la nube EN TIEMPO REAL
-    salesRef.on('value', (snapshot) => {
-        const data = snapshot.val();
-        salesData = [];
-        if (data) {
-            Object.keys(data).forEach(key => {
-                salesData.push({
-                    id: key,
-                    ...data[key]
-                });
-            });
-            // Ordenar por más recientes arriba
-            salesData.sort((a,b) => new Date(b.date) - new Date(a.date));
-        }
-
-        buildTakenNumbersMap();
-        renderGrid();
-        updateStats();
-        renderClientsList();
-    }, (error) => {
-        showAlert("Error de Firebase", "No se pudieron leer las ventas: " + error.message);
-    });
-
-    if (configRef) {
-        configRef.on('value', (snapshot) => {
-            configData = snapshot.val();
-            if (!configData) {
-                document.getElementById('config-modal').classList.add('show');
-            } else {
-                document.getElementById('config-modal').classList.remove('show');
-                setupDynamicForm();
-                renderGrid();
-                updateStats();
-                updateBanner();
-            }
-        }, (error) => {
-            showAlert("Error de Firebase", "No se pudo leer la configuración: " + error.message);
-        });
-    }
-
     setupEventListeners();
+    const authForm = document.getElementById('auth-form');
+    authForm.addEventListener('submit', handleAuthSubmit);
+    document.getElementById('auth-mode').addEventListener('click', () => {
+        authSignupMode = !authSignupMode;
+        document.getElementById('auth-submit').textContent = authSignupMode ? 'Crear cuenta y solicitar acceso' : 'Iniciar sesión';
+        document.getElementById('auth-mode').textContent = authSignupMode ? 'Ya tengo cuenta' : 'Solicitar acceso como vendedor';
+        document.getElementById('auth-message').textContent = authSignupMode ? 'Crea una cuenta. El administrador revisará tu solicitud.' : 'Inicia sesión para acceder a tus rifas.';
+    });
+    document.getElementById('raffle-picker').addEventListener('change', event => activateRaffle(event.target.value));
+    auth.onAuthStateChanged(handleAuthState);
 
-    // Migración Opcional: Subir lo del LocalStorage viejo a la Nube.
-    const localData = localStorage.getItem('RifaSalesData');
-    if (localData) {
-        try {
-            const oldSales = JSON.parse(localData);
-            if(oldSales && oldSales.length > 0) {
-               if(confirm("💾 Se detectaron ventas que guardaste anteriormente sin conexión. ¿Deseas subirlas a tu nueva Nube en Firebase para que no se pierdan?")) {
-                   oldSales.forEach(s => {
-                       salesRef.push({
-                           name: s.name,
-                           phone: s.phone,
-                           numbers: s.numbers,
-                           status: s.status,
-                           date: s.date || new Date().toISOString()
-                       });
-                   });
-                   alert("¡Nube actualizada con éxito!");
-               }
-               // Remove it anyway so it doesn't prompt again
-               localStorage.removeItem('RifaSalesData');
-            }
-        } catch(e){}
+
+}
+
+async function handleAuthSubmit(event) {
+    event.preventDefault();
+    const email = document.getElementById('auth-email').value.trim().toLowerCase();
+    const password = document.getElementById('auth-password').value;
+    try {
+        if (authSignupMode) {
+            const credential = await auth.createUserWithEmailAndPassword(email, password);
+            await credential.user.sendEmailVerification();
+            await auth.signOut();
+            document.getElementById('auth-message').textContent = 'Te enviamos un correo para verificar la cuenta. Después de verificarla, inicia sesión para solicitar aprobación.';
+            authSignupMode = false;
+            document.getElementById('auth-submit').textContent = 'Iniciar sesión';
+            document.getElementById('auth-mode').textContent = 'Solicitar acceso como vendedor';
+            return;
+        }
+        const credential = await auth.signInWithEmailAndPassword(email, password);
+        if (!credential.user.emailVerified) {
+            await credential.user.sendEmailVerification();
+            await auth.signOut();
+            throw new Error('Verifica tu correo desde el enlace que acabamos de reenviar.');
+        }
+    } catch (error) {
+        document.getElementById('auth-message').textContent = error.message;
     }
 }
+
+async function handleAuthState(user) {
+    currentUser = user;
+    const gate = document.getElementById('auth-gate');
+    const app = document.querySelector('.app-container');
+    if (!user) {
+        if (window.activeProfileListener) window.activeProfileListener.off();
+        window.activeProfileListener = null;
+        salesRef = configRef = null;
+        currentProfile = null;
+        gate.style.display = 'block'; app.style.display = 'none';
+        return;
+    }
+    gate.style.display = 'none'; app.style.display = 'flex';
+    try {
+        if (!user.emailVerified) throw new Error('Verifica tu correo electrónico para usar la aplicación.');
+        const profileRef = db.ref(`usuarios/${user.uid}`);
+        let snap = await profileRef.once('value');
+        let profile = snap.val();
+        if (!profile && user.email.toLowerCase() === OWNER_EMAIL) {
+            profile = { email: user.email, nombre: user.displayName || user.email, rol: 'admin', activo: true, creado: firebase.database.ServerValue.TIMESTAMP };
+            await profileRef.set(profile);
+        } else if (!profile) {
+            profile = { email: user.email, nombre: user.displayName || user.email, rol: 'pendiente', activo: false, creado: firebase.database.ServerValue.TIMESTAMP };
+            await profileRef.set(profile);
+        }
+        currentProfile = profile;
+        if (profile.rol === 'pendiente' || !profile.activo) {
+            await auth.signOut();
+            document.getElementById('auth-message').textContent = 'Tu solicitud está pendiente de aprobación del administrador.';
+            return;
+        }
+        if (!['admin','vendedor'].includes(profile.rol)) throw new Error('La cuenta no tiene un rol autorizado.');
+        if (window.activeProfileListener) window.activeProfileListener.off();
+        window.activeProfileListener = profileRef;
+        profileRef.on('value', liveProfileSnap => {
+            const liveProfile = liveProfileSnap.val();
+            if (!liveProfile?.activo || !['admin','vendedor'].includes(liveProfile.rol)) auth.signOut();
+            else currentProfile = liveProfile;
+        });
+        document.getElementById('new-raffle-button').style.display = profile.rol === 'admin' ? '' : 'none';
+        document.getElementById('admin-button').style.display = profile.rol === 'admin' ? '' : 'none';
+    document.getElementById('archive-raffle-button').style.display = profile.rol === 'admin' ? '' : 'none';
+        await loadRaffles();
+    } catch (error) {
+        console.error(error);
+        await auth.signOut();
+        document.getElementById('auth-message').textContent = 'No se pudo validar el acceso. ' + error.message;
+    }
+}
+
+async function loadRaffles() {
+    const snapshot = await db.ref('rifas').once('value');
+    raffleIndex = snapshot.val() || {};
+    if (!Object.values(raffleIndex).some(raffle => raffle?.config) && currentProfile.rol === 'admin') await migrateLegacyRaffle();
+    const fresh = await db.ref('rifas').once('value');
+    raffleIndex = fresh.val() || {};
+    const picker = document.getElementById('raffle-picker');
+    const ids = Object.keys(raffleIndex).filter(id => raffleIndex[id]?.config);
+    picker.innerHTML = ids.map(id => `<option value="${escapeHtml(id)}">${raffleIndex[id].meta?.estado === 'archivada' ? '📁 ' : ''}${escapeHtml(raffleIndex[id].config.title || 'Rifa')}</option>`).join('');
+    if (!ids.length) {
+        if (currentProfile.rol === 'admin') startNewRaffle();
+        else showAlert('Sin rifas', 'El administrador debe crear o migrar una rifa antes de habilitar vendedores.');
+        return;
+    }
+    const saved = localStorage.getItem('activeRaffleId');
+    activateRaffle(ids.includes(saved) ? saved : ids[0]);
+}
+
+async function migrateLegacyRaffle() {
+    const [configSnap, salesSnap] = await Promise.all([db.ref('configRifa').once('value'), db.ref('ventasRifa').once('value')]);
+    const oldConfig = configSnap.val();
+    if (!oldConfig) return;
+    const alreadyMigrated = await db.ref('rifas/rifa-anterior/config').once('value');
+    if (alreadyMigrated.exists()) return;
+    const oldSales = salesSnap.val() || {};
+    await db.ref('rifas/rifa-anterior/meta').set({ estado: 'activa', creada: firebase.database.ServerValue.TIMESTAMP, migrada: true });
+    const updates = {};
+    updates['rifas/rifa-anterior/config'] = oldConfig;
+    Object.keys(oldSales).forEach(id => updates[`rifas/rifa-anterior/ventas/${id}`] = oldSales[id]);
+    await db.ref().update(updates);
+    // Las rutas anteriores quedan como respaldo y se eliminan solo desde Firebase Console, tras verificar la copia.
+}
+
+function activateRaffle(id) {
+    if (!id || !raffleIndex[id]) return;
+    currentRaffleId = id;
+    localStorage.setItem('activeRaffleId', id);
+    salesRef = db.ref(`rifas/${id}/ventas`);
+    configRef = db.ref(`rifas/${id}/config`);
+    salesData = [];
+    configData = raffleIndex[id].config;
+    document.getElementById('raffle-picker').value = id;
+    const isArchived = raffleIndex[id].meta?.estado === 'archivada';
+    const saveSaleButton = document.querySelector('#sale-form button[type="submit"]');
+    saveSaleButton.disabled = isArchived;
+    saveSaleButton.textContent = isArchived ? 'Rifa cerrada' : 'Guardar Registro';
+    const archiveButton = document.getElementById('archive-raffle-button');
+    if (archiveButton && currentProfile?.rol === 'admin') archiveButton.innerHTML = isArchived ? '<i class="ph ph-arrow-counter-clockwise"></i> Reabrir esta rifa' : '<i class="ph ph-archive"></i> Cerrar esta rifa y conservar ventas';
+    document.getElementById('config-modal').classList.remove('show');
+    if (window.activeSalesListener) window.activeSalesListener.off();
+    window.activeSalesListener = salesRef;
+    salesRef.on('value', snapshot => {
+        const data = snapshot.val() || {};
+        salesData = Object.keys(data).map(key => ({ id: key, ...data[key] })).sort((a,b) => new Date(b.date)-new Date(a.date));
+        buildTakenNumbersMap(); renderGrid(); updateStats(); renderClientsList();
+    }, error => showAlert('Error de Firebase', 'No se pudieron leer las ventas: ' + error.message));
+    setupDynamicForm(); renderGrid(); updateStats(); updateBanner();
+    migrateLocalSalesIfNeeded();
+}
+
+async function migrateLocalSalesIfNeeded() {
+    const localData = localStorage.getItem('RifaSalesData');
+    if (!localData || localStorage.getItem('RifaSalesDataMigrated')) return;
+    let oldSales;
+    try { oldSales = JSON.parse(localData); } catch { return; }
+    if (!Array.isArray(oldSales) || !oldSales.length) return;
+    if (!confirm(`Hay ${oldSales.length} ventas guardadas localmente. ¿Quieres copiarlas a la rifa seleccionada? El original se conservará hasta confirmar la copia.`)) return;
+    try {
+        await Promise.all(oldSales.map(sale => salesRef.push({
+            name: sale.name, phone: sale.phone, numbers: sale.numbers, status: sale.status,
+            date: sale.date || new Date().toISOString(), createdBy: currentUser.uid
+        })));
+        localStorage.setItem('RifaSalesDataMigrated', 'true');
+        localStorage.removeItem('RifaSalesData');
+        alert('Las ventas locales se copiaron correctamente.');
+    } catch (error) { showAlert('No se copiaron las ventas locales', error.message); }
+}
+
+window.startNewRaffle = function() {
+    if (currentProfile?.rol !== 'admin') return;
+    currentRaffleId = 'rifa-' + Date.now().toString(36);
+    configData = null;
+    document.getElementById('config-form').reset();
+    document.getElementById('config-modal').querySelector('h3').textContent = 'Crear nueva rifa';
+    document.getElementById('config-modal').classList.add('show');
+};
+window.archiveCurrentRaffle = async function() {
+    if (currentProfile?.rol !== 'admin' || !currentRaffleId) return;
+    const archived = raffleIndex[currentRaffleId]?.meta?.estado === 'archivada';
+    if (!confirm(archived ? '¿Reabrir esta rifa para continuar registrando ventas?' : '¿Cerrar esta rifa? Se conservarán sus ventas y podrás consultarlas después.')) return;
+    try {
+        await db.ref(`rifas/${currentRaffleId}/meta`).update({ estado: archived ? 'activa' : 'archivada', cerrada: archived ? null : firebase.database.ServerValue.TIMESTAMP });
+        document.getElementById('winner-modal').classList.remove('show');
+        await loadRaffles();
+    } catch (error) { showAlert('No se pudo cerrar la rifa', error.message); }
+};
+
+window.openAdminPanel = async function() {
+    if (currentProfile?.rol !== 'admin') return;
+    const snapshot = await db.ref('usuarios').once('value');
+    const users = snapshot.val() || {};
+    document.getElementById('vendor-list').innerHTML = Object.entries(users).map(([uid, user]) => `
+        <div style="padding:12px 0;border-bottom:1px solid #334155">
+            <strong>${escapeHtml(user.nombre || user.email)}</strong><br><small>${escapeHtml(user.email)} · ${escapeHtml(user.rol)}</small>
+            ${user.rol === 'pendiente' ? `<button class="btn-primary" style="padding:7px 10px;margin:8px 0 0" onclick="setVendorRole('${escapeHtml(uid)}','vendedor',true)">Aprobar vendedor</button>` : ''}
+            ${user.rol === 'vendedor' && user.activo ? `<button class="btn-secondary" style="padding:7px 10px;margin:8px 0 0" onclick="setVendorRole('${escapeHtml(uid)}','vendedor',false)">Desactivar</button>` : ''}
+            ${user.rol === 'vendedor' && !user.activo ? `<button class="btn-primary" style="padding:7px 10px;margin:8px 0 0" onclick="setVendorRole('${escapeHtml(uid)}','vendedor',true)">Activar</button>` : ''}
+        </div>`).join('') || '<p>No hay solicitudes de vendedores.</p>';
+    document.getElementById('admin-modal').classList.add('show');
+};
+window.setVendorRole = async function(uid, role, active) {
+    if (currentProfile?.rol !== 'admin' || uid === currentUser.uid) return;
+    await db.ref(`usuarios/${uid}`).update({ rol: role, activo: active });
+    openAdminPanel();
+};
 
 // Data Processing
 function buildTakenNumbersMap() {
     takenNumbers = {};
     salesData.forEach(sale => {
+        if (getSaleStatus(sale) === 'Liberado') return;
         if(sale.numbers && Array.isArray(sale.numbers)) {
             sale.numbers.forEach(num => {
                 takenNumbers[num] = sale;
@@ -969,6 +1163,14 @@ function setupEventListeners() {
     const filterStatus = document.getElementById('filter-status');
     const quickSearchNumber = document.getElementById('quick-search-number');
 
+    const saleStatus = document.getElementById('sale-status');
+    if (saleStatus) {
+        saleStatus.addEventListener('change', updatePaymentDueDateField);
+        updatePaymentDueDateField();
+    }
+    // Mantener al día los avisos aunque la pantalla quede abierta al cambiar la fecha.
+    window.setInterval(renderClientsList, 60 * 1000);
+
     if(searchClient) searchClient.addEventListener('input', renderClientsList);
     if(filterStatus) filterStatus.addEventListener('change', renderClientsList);
 
@@ -1003,8 +1205,9 @@ function setupEventListeners() {
     if (configForm) {
         configForm.addEventListener('submit', (e) => {
             e.preventDefault();
+            if (currentProfile?.rol !== 'admin' || !currentRaffleId) return;
             if (confirm("¿Estás seguro de la configuración? Esta acción es irreversible.")) {
-                configRef.set({
+                const newConfig = {
                     title: document.getElementById('config-title').value,
                     prize: document.getElementById('config-prize').value,
                     consolation: document.getElementById('config-consolation').value,
@@ -1015,7 +1218,11 @@ function setupEventListeners() {
                     channel: document.getElementById('config-channel').value,
                     raffleSize: parseInt(document.getElementById('config-size').value, 10),
                     numbersPerTicket: parseInt(document.getElementById('config-package').value, 10)
-                });
+                };
+                const updates = {};
+                updates[`rifas/${currentRaffleId}/config`] = newConfig;
+                updates[`rifas/${currentRaffleId}/meta`] = { estado: 'activa', creada: firebase.database.ServerValue.TIMESTAMP, creadaPor: currentUser.uid };
+                db.ref().update(updates).then(() => { localStorage.setItem('activeRaffleId', currentRaffleId); return loadRaffles(); }).catch(error => showAlert('Error guardando rifa', error.message));
             }
         });
     }
@@ -1023,7 +1230,7 @@ function setupEventListeners() {
 
 function handleSaleSubmit(e) {
     e.preventDefault();
-    if(!salesRef) {
+    if(!salesRef || !currentUser || !['admin','vendedor'].includes(currentProfile?.rol) || raffleIndex[currentRaffleId]?.meta?.estado === 'archivada') {
         showAlert("¡Error de red!", "Firebase no se pudo conectar. Verifica tu internet.");
         return;
     }
@@ -1031,6 +1238,37 @@ function handleSaleSubmit(e) {
     const name = document.getElementById('client-name').value.trim();
     const phone = document.getElementById('client-phone').value.trim();
     const status = document.getElementById('sale-status').value;
+    const existingSale = editModeId ? salesData.find(sale => sale.id === editModeId) : null;
+    const totalAmount = existingSale ? getSaleTotalAmount(existingSale) : parseMoneyAmount(configData?.price);
+    let payments = Array.isArray(existingSale?.payments) ? [...existingSale.payments] : [];
+    let paidAmount = getSalePaidAmount(existingSale);
+    const now = new Date().toISOString();
+
+    if (!existingSale && status === 'Abonado') {
+        paidAmount = Number(document.getElementById('initial-payment-amount').value) || 0;
+        if (paidAmount <= 0 || (totalAmount > 0 && paidAmount >= totalAmount)) {
+            showAlert('Abono inválido', 'El abono debe ser mayor que cero y menor que el valor total del puesto.');
+            return;
+        }
+        payments.push({ amount: paidAmount, date: now });
+    } else if (!existingSale && status === 'Pagado') {
+        paidAmount = totalAmount;
+        if (paidAmount > 0) payments.push({ amount: paidAmount, date: now });
+    } else if (existingSale && status === 'Pagado' && totalAmount > paidAmount) {
+        const remainingPayment = totalAmount - paidAmount;
+        payments.push({ amount: remainingPayment, date: now });
+        paidAmount = totalAmount;
+    }
+
+    const effectiveStatus = totalAmount > 0 && paidAmount >= totalAmount
+        ? 'Pagado'
+        : paidAmount > 0 ? 'Abonado' : status;
+    const paymentDueDate = effectiveStatus === 'Pagado' ? null : document.getElementById('payment-due-date').value;
+
+    if (effectiveStatus !== 'Pagado' && !paymentDueDate) {
+        showAlert('Falta la fecha de pago', 'Para una venta pendiente o abonada, indica la fecha límite de pago.');
+        return;
+    }
     
     let pack = configData && configData.numbersPerTicket ? configData.numbersPerTicket : 3;
     let numsToAssign = [];
@@ -1081,7 +1319,13 @@ function handleSaleSubmit(e) {
             name,
             phone,
             numbers: numsToAssign,
-            status
+            status: effectiveStatus,
+            totalAmount,
+            paidAmount,
+            payments,
+            paymentDueDate,
+            paidAt: effectiveStatus === 'Pagado' ? (existingSale?.paidAt || now) : null,
+            updatedBy: currentUser.uid
         });
         
         editModeId = null;
@@ -1093,14 +1337,107 @@ function handleSaleSubmit(e) {
             name,
             phone,
             numbers: numsToAssign,
-            status,
-            date: new Date().toISOString()
+            status: effectiveStatus,
+            totalAmount,
+            paidAmount,
+            payments,
+            date: now,
+            paymentDueDate,
+            paidAt: effectiveStatus === 'Pagado' ? now : null,
+            createdBy: currentUser.uid
         });
     }
 
     // Limpiar formulario y navegar al tablero
     saleForm.reset();
+    updatePaymentDueDateField();
     document.querySelector('.nav-item[data-target="view-dashboard"]').click();
+}
+
+function updatePaymentDueDateField() {
+    const status = document.getElementById('sale-status');
+    const group = document.getElementById('payment-due-group');
+    const input = document.getElementById('payment-due-date');
+    const initialGroup = document.getElementById('initial-payment-group');
+    const initialInput = document.getElementById('initial-payment-amount');
+    if (!status || !group || !input) return;
+    const needsDueDate = status.value !== 'Pagado';
+    group.style.display = needsDueDate ? 'block' : 'none';
+    input.required = needsDueDate;
+    const needsInitialPayment = status.value === 'Abonado' && !editModeId;
+    if (initialGroup) initialGroup.style.display = needsInitialPayment ? 'block' : 'none';
+    if (initialInput) initialInput.required = needsInitialPayment;
+}
+
+function parseMoneyAmount(value) {
+    const digits = String(value ?? '').replace(/[^0-9]/g, '');
+    return digits ? Number(digits) : 0;
+}
+
+function getSaleTotalAmount(sale) {
+    const saved = Number(sale?.totalAmount);
+    return Number.isFinite(saved) && saved > 0 ? saved : parseMoneyAmount(configData?.price);
+}
+
+function getSalePaidAmount(sale) {
+    if (!sale) return 0;
+    if (Array.isArray(sale.payments) && sale.payments.length > 0) {
+        return sale.payments.reduce((sum, payment) => sum + Math.max(0, Number(payment.amount) || 0), 0);
+    }
+    if (Number.isFinite(Number(sale.paidAmount))) return Math.max(0, Number(sale.paidAmount));
+    return sale.status === 'Pagado' ? getSaleTotalAmount(sale) : 0;
+}
+
+function getSaleBalance(sale) {
+    return Math.max(0, getSaleTotalAmount(sale) - getSalePaidAmount(sale));
+}
+
+function getSaleStatus(sale) {
+    if (sale?.status === 'Liberado') return 'Liberado';
+    const total = getSaleTotalAmount(sale);
+    const paid = getSalePaidAmount(sale);
+    if (total > 0 && paid >= total) return 'Pagado';
+    if (paid > 0) return 'Abonado';
+    return sale?.status === 'Pagado' ? 'Pagado' : 'Separado';
+}
+
+function formatCOP(amount) {
+    return new Intl.NumberFormat('es-CO', {
+        style: 'currency', currency: 'COP', maximumFractionDigits: 0
+    }).format(Math.max(0, Number(amount) || 0));
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+}
+
+function getLocalDateString(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Bogota', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    const part = type => parts.find(item => item.type === type)?.value || '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+function getPaymentDueState(sale) {
+    if (!sale || !['Separado', 'Abonado'].includes(getSaleStatus(sale)) || !sale.paymentDueDate) return '';
+    const today = getLocalDateString();
+    if (sale.paymentDueDate < today) return 'Vencido';
+    if (sale.paymentDueDate === today) return 'Vence hoy';
+    const due = new Date(`${sale.paymentDueDate}T12:00:00`);
+    const limit = new Date(`${today}T12:00:00`);
+    limit.setDate(limit.getDate() + 3);
+    return due <= limit ? 'Proximos' : '';
+}
+
+function formatPaymentDueDate(dateString) {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day, 12)).toLocaleDateString('es-CO', {
+        timeZone: 'America/Bogota', day: 'numeric', month: 'long', year: 'numeric'
+    });
 }
 
 function renderGrid() {
@@ -1125,12 +1462,13 @@ function renderGrid() {
 
         if(takenNumbers[numStr]) {
             const sale = takenNumbers[numStr];
-            if(sale.status === 'Pagado') {
+            const saleStatus = getSaleStatus(sale);
+            if(saleStatus === 'Pagado') {
                 stateClass = 'pagado';
-            } else if (sale.status === 'Separado') {
+            } else if (saleStatus === 'Separado' || saleStatus === 'Abonado') {
                 stateClass = 'separado';
             }
-            tooltipText = `${sale.name} - ${sale.status}`;
+            tooltipText = `${sale.name} - ${saleStatus}`;
         }
         
         card.className = `num-card ${stateClass}`;
@@ -1161,7 +1499,7 @@ function renderGrid() {
              if(stateClass === 'disp') {
                   navigateToFormWithNumber(numStr);
              } else {
-                  alert(`Número: ${numStr}\nCliente: ${takenNumbers[numStr].name}\nCel: ${takenNumbers[numStr].phone}\nEstado: ${takenNumbers[numStr].status}`);
+                  alert(`Número: ${numStr}\nCliente: ${takenNumbers[numStr].name}\nCel: ${takenNumbers[numStr].phone}\nEstado: ${getSaleStatus(takenNumbers[numStr])}`);
              }
         });
 
@@ -1199,7 +1537,7 @@ function updateStats() {
     for(let i=0; i<maxItems; i++) {
         const numStr = padNumber(i);
         if(takenNumbers[numStr]) {
-            if(takenNumbers[numStr].status === 'Pagado') vendidos++;
+            if(getSaleStatus(takenNumbers[numStr]) === 'Pagado') vendidos++;
             else separados++;
         } else {
             libres++;
@@ -1217,6 +1555,17 @@ function updateStats() {
 
 function renderClientsList() {
     if(!clientsListContainer) return;
+
+    const reminderSummary = document.getElementById('payment-reminder-summary');
+    const overdueCount = salesData.filter(sale => getPaymentDueState(sale) === 'Vencido').length;
+    const dueTodayCount = salesData.filter(sale => getPaymentDueState(sale) === 'Vence hoy').length;
+    const upcomingCount = salesData.filter(sale => getPaymentDueState(sale) === 'Proximos').length;
+    const pendingBalance = salesData
+        .filter(sale => !['Pagado', 'Liberado'].includes(getSaleStatus(sale)))
+        .reduce((sum, sale) => sum + getSaleBalance(sale), 0);
+    if (reminderSummary) {
+        reminderSummary.textContent = `Recordatorios: ${overdueCount} vencidos · ${dueTodayCount} vencen hoy · ${upcomingCount} próximos (3 días). Saldo pendiente: ${formatCOP(pendingBalance)}.`;
+    }
     
     const searchInput = document.getElementById('search-client');
     const statusSelect = document.getElementById('filter-status');
@@ -1233,7 +1582,8 @@ function renderClientsList() {
                               sPhone.includes(searchVal) ||
                               sNums.some(n => String(n).includes(searchVal));
                               
-        const matchesStatus = filterStatus === 'Todos' || sale.status === filterStatus;
+        const dueState = getPaymentDueState(sale);
+        const matchesStatus = filterStatus === 'Todos' || getSaleStatus(sale) === filterStatus || dueState === filterStatus;
         return matchesSearch && matchesStatus;
     });
 
@@ -1248,26 +1598,47 @@ function renderClientsList() {
         const el = document.createElement('div');
         el.className = 'client-card';
         
-        const numsHtml = sale.numbers.map(n => `<span class="badge ${sale.status.toLowerCase()}">${n}</span>`).join('');
-        const statusIcon = sale.status === 'Pagado' ? '💰' : '⏳';
+        const saleStatus = getSaleStatus(sale);
+        const statusClass = saleStatus.toLowerCase();
+        const numsHtml = (sale.numbers || []).map(n => `<span class="badge ${statusClass}">${escapeHtml(n)}</span>`).join('');
+        const statusIcon = saleStatus === 'Pagado' ? '💰' : saleStatus === 'Abonado' ? '💵' : saleStatus === 'Liberado' ? '↩️' : '⏳';
+        const dueState = getPaymentDueState(sale);
+        const dueLabel = sale.paymentDueDate && saleStatus !== 'Pagado'
+            ? `<p style="margin-top: 6px; color: ${dueState === 'Vencido' ? '#ef4444' : dueState === 'Vence hoy' ? '#f59e0b' : 'var(--text-muted)'};"><i class="ph ph-calendar"></i> ${dueState ? `${dueState}: ` : 'Fecha límite: '}${formatPaymentDueDate(sale.paymentDueDate)}</p>`
+            : '';
+        const balanceLabel = saleStatus !== 'Liberado'
+            ? `<p style="margin-top: 6px; color: var(--text-muted);">Total: ${formatCOP(getSaleTotalAmount(sale))} · Abonado: ${formatCOP(getSalePaidAmount(sale))} · Saldo: <strong>${formatCOP(getSaleBalance(sale))}</strong></p>`
+            : `<p style="margin-top: 6px; color: var(--text-muted);">Números liberados; registro conservado como historial.</p>`;
+        const paymentHistory = Array.isArray(sale.payments) ? sale.payments : [];
+        const paymentHistoryHtml = paymentHistory.length
+            ? `<details style="margin-top: 6px; color: var(--text-muted); font-size: 13px;"><summary>Historial de abonos (${paymentHistory.length})</summary><ul>${paymentHistory.map(payment => `<li>${formatCOP(payment.amount)} · ${new Date(payment.date).toLocaleString('es-CO', { timeZone: 'America/Bogota' })}</li>`).join('')}</ul></details>`
+            : '';
+        const saleId = escapeHtml(sale.id);
 
         el.innerHTML = `
             <div class="client-header">
                 <div>
-                    <h4>${sale.name}</h4>
-                    <p><i class="ph ph-phone"></i> ${sale.phone}</p>
+                    <h4>${escapeHtml(sale.name)}</h4>
+                    <p><i class="ph ph-phone"></i> ${escapeHtml(sale.phone)}</p>
+                    ${balanceLabel}
+                    ${paymentHistoryHtml}
+                    ${dueLabel}
                 </div>
                 <div class="client-status">
-                     <span class="status-chip ${sale.status.toLowerCase()}">${statusIcon} ${sale.status}</span>
+                     <span class="status-chip ${statusClass}">${statusIcon} ${escapeHtml(saleStatus)}</span>
                 </div>
             </div>
             <div class="client-nums">
                 ${numsHtml}
             </div>
-            <button class="btn-delete" onclick="deleteSale('${sale.id}')" title="Borrar o liberar números"><i class="ph ph-trash"></i></button>
-            <button class="btn-delete" style="right: 70px; background: rgba(37, 211, 102, 0.1); color: #25D366;" onclick="sendWhatsApp('${sale.id}')" title="Enviar WhatsApp"><i class="ph ph-whatsapp-logo"></i></button>
-            <button class="btn-delete" style="right: 120px; background: rgba(16, 185, 129, 0.1); color: var(--color-disp);" onclick="toggleStatus('${sale.id}')" title="Cambiar Estado"><i class="ph ph-arrows-left-right"></i></button>
-            <button class="btn-delete" style="right: 170px; background: rgba(99, 102, 241, 0.1); color: var(--color-primary);" onclick="editSale('${sale.id}')" title="Editar"><i class="ph ph-pencil-simple"></i></button>
+            <div class="client-actions">
+                ${saleStatus !== 'Liberado' && getSaleBalance(sale) > 0 ? `<button class="btn-delete" style="background: rgba(16, 185, 129, 0.1); color: var(--color-disp);" onclick="registerPayment('${saleId}')" title="Registrar un abono"><i class="ph ph-coins"></i> Registrar abono</button>` : ''}
+                ${saleStatus !== 'Liberado' ? `<button class="btn-delete" style="background: rgba(37, 211, 102, 0.1); color: #25D366;" onclick="sendWhatsApp('${saleId}')" title="Preparar mensaje de WhatsApp"><i class="ph ph-whatsapp-logo"></i> WhatsApp</button>` : ''}
+                ${saleStatus !== 'Liberado' && getSaleBalance(sale) > 0 ? `<button class="btn-delete" style="background: rgba(16, 185, 129, 0.1); color: var(--color-disp);" onclick="toggleStatus('${saleId}')" title="Marcar como pagado"><i class="ph ph-check"></i> Completar pago</button>` : ''}
+                ${saleStatus !== 'Liberado' ? `<button class="btn-delete" style="background: rgba(99, 102, 241, 0.1); color: var(--color-primary);" onclick="editSale('${saleId}')" title="Editar venta"><i class="ph ph-pencil-simple"></i> Editar</button>` : ''}
+                ${dueState === 'Vencido' ? `<button class="btn-delete" style="background: rgba(244, 63, 94, 0.12); color: #fb7185;" onclick="releaseSale('${saleId}')" title="Liberar los números vencidos"><i class="ph ph-arrow-u-up-left"></i> Liberar números</button>` : ''}
+                <button class="btn-delete" onclick="deleteSale('${saleId}')" title="Eliminar permanentemente"><i class="ph ph-trash"></i> Eliminar</button>
+            </div>
         `;
         clientsListContainer.appendChild(el);
     });
@@ -1275,18 +1646,69 @@ function renderClientsList() {
 
 window.deleteSale = function(id) {
     if(!salesRef) return;
-    if(confirm('¿Estás seguro de que quieres eliminar este registro y liberar sus números?')) {
+    if(confirm('Esto eliminará permanentemente la venta y su historial de abonos. Si solo quieres liberar los números vencidos y conservar el registro, usa “Liberar números”. ¿Deseas eliminarla?')) {
         salesRef.child(id).remove();
     }
+}
+
+function applyPayment(id, amount) {
+    return salesRef.child(id).transaction(current => {
+        if (!current || getSaleStatus(current) === 'Liberado') return;
+        const balance = getSaleBalance(current);
+        if (amount <= 0 || amount > balance) return;
+        const payments = Array.isArray(current.payments) ? [...current.payments] : [];
+        payments.push({ amount, date: new Date().toISOString() });
+        const paidAmount = getSalePaidAmount(current) + amount;
+        const isPaid = paidAmount >= getSaleTotalAmount(current);
+        return {
+            ...current,
+            payments,
+            paidAmount,
+            status: isPaid ? 'Pagado' : 'Abonado',
+            paymentDueDate: isPaid ? null : (current.paymentDueDate || null),
+            paidAt: isPaid ? new Date().toISOString() : null
+        };
+    }).then(result => {
+        if (!result.committed) showAlert('Pago no registrado', 'El saldo pudo cambiar en otra pantalla. Actualiza la lista y vuelve a intentarlo.');
+    }).catch(error => showAlert('Error al registrar el pago', error.message));
+}
+
+window.registerPayment = function(id) {
+    if(!salesRef) return;
+    const sale = salesData.find(s => s.id === id);
+    if(!sale || getSaleStatus(sale) === 'Liberado') return;
+    const amountText = prompt(`Saldo pendiente: ${formatCOP(getSaleBalance(sale))}\n\nEscribe el valor recibido (solo números):`);
+    if (amountText === null) return;
+    const amount = parseMoneyAmount(amountText);
+    const balance = getSaleBalance(sale);
+    if (!amount || amount > balance) {
+        showAlert('Valor inválido', `El abono debe estar entre ${formatCOP(1)} y ${formatCOP(balance)}.`);
+        return;
+    }
+    applyPayment(id, amount);
 }
 
 window.toggleStatus = function(id) {
     if(!salesRef) return;
     const sale = salesData.find(s => s.id === id);
-    if(sale) {
-        const newStatus = sale.status === 'Pagado' ? 'Separado' : 'Pagado';
-        salesRef.child(id).update({ status: newStatus });
-    }
+    if(!sale || getSaleStatus(sale) === 'Liberado') return;
+    const balance = getSaleBalance(sale);
+    if (balance <= 0) return;
+    if (!confirm(`¿Confirmas que recibiste el saldo de ${formatCOP(balance)} y que esta venta queda pagada?`)) return;
+    applyPayment(id, balance);
+}
+
+window.releaseSale = function(id) {
+    if(!salesRef) return;
+    const sale = salesData.find(s => s.id === id);
+    if(!sale || getPaymentDueState(sale) !== 'Vencido') return;
+    if (!confirm(`¿Liberar los números ${sale.numbers.join(', ')} de ${sale.name}?\n\nEl registro y los abonos recibidos se conservarán en el historial. La liberación no registra una devolución.`)) return;
+    salesRef.child(id).transaction(current => {
+        if (!current || getPaymentDueState(current) !== 'Vencido') return;
+        return { ...current, status: 'Liberado', releasedAt: new Date().toISOString() };
+    }).then(result => {
+        if (!result.committed) showAlert('No se liberaron los números', 'La venta pudo cambiar de estado. Actualiza la lista antes de volver a intentarlo.');
+    }).catch(error => showAlert('Error al liberar los números', error.message));
 }
 
 window.editSale = function(id) {
@@ -1295,7 +1717,9 @@ window.editSale = function(id) {
         editModeId = id;
         document.getElementById('client-name').value = sale.name;
         document.getElementById('client-phone').value = sale.phone;
-        document.getElementById('sale-status').value = sale.status;
+        document.getElementById('sale-status').value = getSaleStatus(sale);
+        document.getElementById('payment-due-date').value = sale.paymentDueDate || '';
+        updatePaymentDueDateField();
         
         // Populate inputs
         let pack = configData && configData.numbersPerTicket ? configData.numbersPerTicket : 3;
@@ -1390,6 +1814,10 @@ window.exportPDF = async function() {
     doc.setFillColor(244, 63, 94); // Pagado
     doc.rect(95, 10, 8, 8, 'F');
     doc.text("Pagado", 106, 15);
+
+    doc.setFillColor(37, 99, 235); // Abonado
+    doc.rect(140, 10, 8, 8, 'F');
+    doc.text("Abonado", 151, 15);
     
     // Configuración de grilla
     const startX = 15;
@@ -1411,10 +1839,14 @@ window.exportPDF = async function() {
         
         if(takenNumbers[numStr]) {
             isLibre = false;
-            if(takenNumbers[numStr].status === 'Pagado') {
+            const saleStatus = getSaleStatus(takenNumbers[numStr]);
+            if(saleStatus === 'Pagado') {
                 bgColor = [244, 63, 94];
                 txtColor = [255, 255, 255];
-            } else if (takenNumbers[numStr].status === 'Separado') {
+            } else if (saleStatus === 'Abonado') {
+                bgColor = [37, 99, 235];
+                txtColor = [255, 255, 255];
+            } else if (saleStatus === 'Separado') {
                 bgColor = [245, 158, 11];
                 txtColor = [255, 255, 255];
             }
@@ -1454,6 +1886,7 @@ window.exportPDF = async function() {
 window.sendWhatsApp = function(id) {
     const sale = salesData.find(s => s.id === id);
     if (sale) {
+        const saleStatus = getSaleStatus(sale);
         let phone = sale.phone.replace(/\D/g, ''); // Solo números
         
         // Agregar +57 para Colombia
@@ -1468,18 +1901,23 @@ window.sendWhatsApp = function(id) {
         let isReminder = false;
         let isPaymentConfirm = false;
         
-        if (sale.status === 'Separado') {
-            isReminder = confirm("Este cliente está en estado 'Separado'.\n\n- Aceptar: Enviar Recordatorio de Cobro (Automático y estricto).\n- Cancelar: Enviar Mensaje Inicial de Compra (Informa que apartó el puesto pero que debe pagar).");
-        } else if (sale.status === 'Pagado') {
+        if (saleStatus === 'Separado' || saleStatus === 'Abonado') {
+            isReminder = confirm(`Este cliente tiene saldo pendiente (${formatCOP(getSaleBalance(sale))}).\n\n- Aceptar: Abrir WhatsApp con un recordatorio de pago${sale.paymentDueDate ? ` para el ${formatPaymentDueDate(sale.paymentDueDate)}` : ''}.\n- Cancelar: Abrir el mensaje inicial de compra.`);
+        } else if (saleStatus === 'Pagado') {
             isPaymentConfirm = confirm("Este cliente está en estado 'Pagado'.\n\n- Aceptar: Enviar Recibo de Pago (Confirma que su pago fue recibido y ya participa).\n- Cancelar: Enviar Mensaje Inicial de Compra (Si acaba de registrar la compra y pagó de inmediato).");
         }
         
         if (isReminder) {
-            msg += `*[MENSAJE AUTOMÁTICO - RECORDATORIO DE PAGO]*\n\n`;
+            msg += `*[RECORDATORIO DE PAGO]*\n\n`;
             msg += `Estimado/a ${sale.name},\n\n`;
-            msg += `Este es un recordatorio del sistema RifaControl. Te informamos que tienes números separados para la *${configData?.title || 'Rifa Millonaria'}* y la fecha límite se acerca.\n\n`;
+            msg += `Este es un recordatorio del sistema RifaControl sobre tus números de la *${configData?.title || 'Rifa Millonaria'}*. ${getPaymentDueState(sale) === 'Vencido' ? 'La fecha límite de pago ya venció.' : `La fecha límite de pago es ${sale.paymentDueDate ? formatPaymentDueDate(sale.paymentDueDate) : 'por confirmar'}.`}\n\n`;
             msg += `*Números seleccionados:* ${nums}\n`;
-            msg += `*Valor pendiente:* ${configData?.price || '-'}\n`;
+            msg += `*Valor total:* ${formatCOP(getSaleTotalAmount(sale))}\n`;
+            msg += `*Abonos recibidos:* ${formatCOP(getSalePaidAmount(sale))}\n`;
+            msg += `*Saldo pendiente:* ${formatCOP(getSaleBalance(sale))}\n`;
+            if (sale.paymentDueDate) msg += `*Fecha límite de pago:* ${formatPaymentDueDate(sale.paymentDueDate)}\n`;
+            msg += `*Llave Bre-B:* 3004431074\n`;
+            msg += `Puedes transferir desde tu entidad financiera usando esta llave. Verifica el nombre del destinatario antes de confirmar.\n`;
             msg += `*Fecha del Sorteo:* ${configData?.date || '-'}\n\n`;
             msg += `*Aviso Importante:*\n`;
             msg += `Los cupos son limitados. Tu puesto se asegura *solo tras confirmar el pago* enviado a Danny Trujillo.\n\n`;
@@ -1505,6 +1943,7 @@ window.sendWhatsApp = function(id) {
             msg += `*Premio Mayor:* ${configData?.prize || '-'}\n`;
             msg += `*Consolación:* ${configData?.consolation || '-'}\n`;
             msg += `*Valor:* ${configData?.price || '-'}\n`;
+            msg += `*Llave Bre-B para pagos:* 3004431074\n`;
             msg += `*Fecha del Sorteo:* ${configData?.date || '-'}\n`;
             msg += `*Lotería:* ${configData?.lottery || '-'}\n`;
             msg += `*Juega con:* ${configData?.playDigits || '-'}\n\n`;
@@ -1517,9 +1956,12 @@ window.sendWhatsApp = function(id) {
             msg += `- Entrega: La entrega se coordina con Danny Trujillo previa verificación de identidad.\n\n`;
             msg += `Al participar, aceptas estos términos. Reglamento completo disponible en nuestro canal.\n\n`;
             msg += `*Números seleccionados:* ${nums}\n`;
-            msg += `*Estado de tu jugada:* ${sale.status}\n\n`;
+            msg += `*Estado de tu jugada:* ${saleStatus}\n\n`;
             
-            if (sale.status === 'Separado') {
+            if (saleStatus === 'Separado' || saleStatus === 'Abonado') {
+                msg += `*Fecha límite de pago:* ${sale.paymentDueDate ? formatPaymentDueDate(sale.paymentDueDate) : 'Por confirmar'}\n`;
+                msg += `*Llave Bre-B:* 3004431074\n`;
+                msg += `Puedes transferir desde tu entidad financiera usando esta llave y enviar el comprobante por este chat.\n\n`;
                 msg += `*(Nota: Para asegurar y confirmar tu participación con estos números, debes enviar el comprobante de pago antes de la fecha límite).* \n\n`;
             }
             
@@ -1566,30 +2008,23 @@ window.announceWinner = function() {
     document.getElementById('winner-modal').classList.remove('show');
 };
 
-window.resetApp = function() {
-    const confirmation = prompt("⚠️ ¡PELIGRO! ⚠️\nEscribe 'BORRAR' para confirmar que quieres eliminar TODA la información de Firebase y empezar una nueva rifa. Esto no se puede deshacer.");
-    if (confirmation === 'BORRAR') {
-        if (salesRef && configRef) {
-            salesRef.remove().then(() => {
-                return configRef.remove();
-            }).then(() => {
-                alert("¡Rifa reiniciada exitosamente! La página se recargará.");
-                location.reload();
-            }).catch(e => {
-                showAlert("Error al borrar", e.message);
-            });
-        }
-    } else if (confirmation !== null) {
-        alert("Operación cancelada. No escribiste 'BORRAR'.");
-    }
-};
-
 window.exportData = function() {
-    let csv = "Fecha;Nombre;Celular;Estado;Numeros\n";
+    let csv = "Fecha;Nombre;Celular;Estado;Numeros;Total;Abonado;Saldo;Fecha limite de pago;Historial de abonos\n";
+    const csvCell = value => {
+        let text = String(value ?? '');
+        if (/^[=+@-]/.test(text)) text = `'${text}`;
+        return `"${text.replace(/"/g, '""')}"`;
+    };
     salesData.forEach(sale => {
         const dateStr = new Date(sale.date).toLocaleDateString('es-CO');
         const numsStr = sale.numbers.join(', ');
-        csv += `${dateStr};${sale.name};'${sale.phone}';${sale.status};"${numsStr}"\n`;
+        const dueDate = sale.paymentDueDate ? formatPaymentDueDate(sale.paymentDueDate) : '';
+        const paymentHistory = (Array.isArray(sale.payments) ? sale.payments : [])
+            .map(payment => `${formatCOP(payment.amount)} (${new Date(payment.date).toLocaleString('es-CO', { timeZone: 'America/Bogota' })})`)
+            .join(' | ');
+        csv += [dateStr, sale.name, sale.phone, getSaleStatus(sale), numsStr,
+            getSaleTotalAmount(sale), getSalePaidAmount(sale), getSaleBalance(sale), dueDate, paymentHistory]
+            .map(csvCell).join(';') + '\n';
     });
     
     const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
@@ -1612,7 +2047,7 @@ window.generateWhatsAppReport = function() {
     msg += `¡Gracias a todos por su apoyo! Aquí está la lista oficial de nuestros participantes hasta el momento:\n\n`;
     
     msg += `*[PUESTOS VENDIDOS]*\n`;
-    salesData.forEach(sale => {
+    salesData.filter(sale => getSaleStatus(sale) !== 'Liberado').forEach(sale => {
         let phoneMask = sale.phone.slice(-4);
         msg += `- ${sale.name} (***${phoneMask}): ${sale.numbers.join(', ')}\n`;
     });
@@ -1637,6 +2072,7 @@ window.generateWhatsAppReport = function() {
     
     msg += `¡Aún quedan ${availableCount} oportunidades de ganar nuestro espectacular premio!\n\n`;
     msg += `💰 *Valor del puesto:* ${configData?.price || '-'}\n`;
+    msg += `🔑 *Llave Bre-B para pagar:* 3004431074\n`;
     msg += `📅 *Sorteo:* ${configData?.date || '-'}\n\n`;
     msg += `¡Anímate y separa tu número de la suerte antes de que se agoten!\n`;
     msg += `👉 *Escríbenos aquí para comprar el tuyo:*\n`;
@@ -1679,3 +2115,4 @@ document.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
+
