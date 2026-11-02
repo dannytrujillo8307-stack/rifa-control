@@ -576,6 +576,7 @@ body {
                         <div style="display: flex; flex-direction: column; gap: 4px;">
                             <label for="cover-image" style="font-size: 12px; color: var(--text-muted); font-weight: 600;">IMAGEN/PORTADA</label>
                             <input type="file" id="cover-image" accept="image/*" style="max-width: 220px; font-size: 13px; color: white; background: #0f172a; border: 1px solid #334155; border-radius: 4px; padding: 6px;">
+                            <small id="cover-image-status" style="color:var(--text-muted);">La portada se guarda en esta rifa.</small>
                         </div>
                         <button class="btn-primary" style="padding: 10px 16px; font-size: 14px; margin-top: 0; background-color: #ef4444; color: white; height: 100%; align-self: flex-end;" onclick="exportPDF()">
                             <i class="ph ph-file-pdf"></i> Exportar PDF
@@ -832,6 +833,7 @@ let currentProfile = null;
 let currentRaffleId = null;
 let raffleIndex = {};
 let authSignupMode = false;
+let currentCoverImage = null;
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -1009,6 +1011,12 @@ function activateRaffle(id) {
     const archiveButton = document.getElementById('archive-raffle-button');
     if (archiveButton && currentProfile?.rol === 'admin') archiveButton.innerHTML = isArchived ? '<i class="ph ph-arrow-counter-clockwise"></i> Reabrir esta rifa' : '<i class="ph ph-archive"></i> Cerrar esta rifa y conservar ventas';
     document.getElementById('config-modal').classList.remove('show');
+    currentCoverImage = null;
+    document.getElementById('cover-image').value = '';
+    document.getElementById('cover-image').disabled = currentProfile?.rol !== 'admin' || isArchived;
+    setCoverImagePreview(null);
+    document.getElementById('cover-image-status').textContent = 'Cargando portada de esta rifa…';
+    loadCoverImage(id);
     if (window.activeSalesListener) window.activeSalesListener.off();
     window.activeSalesListener = salesRef;
     salesRef.on('value', snapshot => {
@@ -1019,6 +1027,92 @@ function activateRaffle(id) {
     }, error => showAlert('Error de Firebase', 'No se pudieron leer las ventas: ' + error.message));
     setupDynamicForm(); renderGrid(); updateStats(); updateBanner();
     migrateLocalSalesIfNeeded();
+}
+
+function setCoverImagePreview(dataUrl) {
+    const preview = document.getElementById('banner-image-preview');
+    const placeholder = document.getElementById('banner-image-placeholder');
+    if (!preview || !placeholder) return;
+    if (dataUrl) {
+        preview.src = dataUrl;
+        preview.style.display = 'block';
+        placeholder.style.display = 'none';
+    } else {
+        preview.removeAttribute('src');
+        preview.style.display = 'none';
+        placeholder.style.display = 'block';
+    }
+}
+
+function loadCoverImage(raffleId) {
+    db.ref(`rifas/${raffleId}/meta/coverImage`).once('value').then(snapshot => {
+        if (currentRaffleId !== raffleId) return;
+        currentCoverImage = snapshot.val() || null;
+        setCoverImagePreview(currentCoverImage);
+        document.getElementById('cover-image-status').textContent = currentCoverImage
+            ? 'Portada guardada para esta rifa.'
+            : 'Aún no hay una portada guardada.';
+    }).catch(error => {
+        if (currentRaffleId !== raffleId) return;
+        document.getElementById('cover-image-status').textContent = 'No se pudo cargar la portada: ' + error.message;
+    });
+}
+
+function compressCoverImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('No se pudo leer el archivo seleccionado.'));
+        reader.onload = () => {
+            const image = new Image();
+            image.onerror = () => reject(new Error('El archivo no parece ser una imagen válida.'));
+            image.onload = () => {
+                const scale = Math.min(1, 1000 / image.width, 1500 / image.height);
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(image.width * scale));
+                canvas.height = Math.max(1, Math.round(image.height * scale));
+                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+                if (dataUrl.length > 1800000) {
+                    reject(new Error('La imagen sigue siendo muy pesada. Prueba con otra de menor tamaño.'));
+                    return;
+                }
+                resolve(dataUrl);
+            };
+            image.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+async function saveCoverImage(file) {
+    const status = document.getElementById('cover-image-status');
+    const input = document.getElementById('cover-image');
+    if (currentProfile?.rol !== 'admin' || !currentRaffleId) {
+        status.textContent = 'Solo el administrador puede cambiar la portada.';
+        input.value = '';
+        return;
+    }
+    if (!file.type.startsWith('image/')) {
+        status.textContent = 'Selecciona un archivo de imagen.';
+        input.value = '';
+        return;
+    }
+    input.disabled = true;
+    status.textContent = 'Optimizando y guardando la portada…';
+    try {
+        const raffleId = currentRaffleId;
+        const dataUrl = await compressCoverImage(file);
+        await db.ref(`rifas/${raffleId}/meta/coverImage`).set(dataUrl);
+        if (currentRaffleId === raffleId) {
+            currentCoverImage = dataUrl;
+            setCoverImagePreview(dataUrl);
+            status.textContent = 'Portada guardada en Firebase para esta rifa.';
+        }
+    } catch (error) {
+        status.textContent = 'No se guardó la portada: ' + error.message;
+    } finally {
+        input.disabled = currentProfile?.rol !== 'admin' || raffleIndex[currentRaffleId]?.meta?.estado === 'archivada';
+    }
 }
 
 async function migrateLocalSalesIfNeeded() {
@@ -1139,20 +1233,12 @@ function setupEventListeners() {
         });
     });
 
-    // Image Preview setup
+    // Save the compressed cover per raffle in Firebase.
     const coverInput = document.getElementById('cover-image');
     if(coverInput) {
-        coverInput.addEventListener('change', (e) => {
+        coverInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
-            if(file) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    document.getElementById('banner-image-preview').src = ev.target.result;
-                    document.getElementById('banner-image-preview').style.display = 'block';
-                    document.getElementById('banner-image-placeholder').style.display = 'none';
-                };
-                reader.readAsDataURL(file);
-            }
+            if (file) await saveCoverImage(file);
         });
     }
 
@@ -1778,20 +1864,51 @@ window.editSale = function(id) {
     }
 }
 
+async function createMarkedCoverImage() {
+    if (!currentCoverImage) return null;
+    const image = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('No se pudo preparar la portada para el PDF.'));
+        img.src = currentCoverImage;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0);
+
+    // La plantilla navideña adjunta tiene una cuadrícula de 00 a 99 en la parte inferior.
+    if (Number(configData?.raffleSize) === 100 && Math.abs(image.naturalWidth / image.naturalHeight - 2 / 3) < 0.025) {
+        const left = image.naturalWidth * 0.015;
+        const top = image.naturalHeight * 0.535;
+        const gridWidth = image.naturalWidth * 0.970;
+        const gridHeight = image.naturalHeight * 0.384;
+        const cellWidth = gridWidth / 10;
+        const cellHeight = gridHeight / 10;
+        ctx.globalAlpha = 0.42;
+        for (let number = 0; number < 100; number++) {
+            const sale = takenNumbers[padNumber(number)];
+            if (!sale) continue;
+            const status = getSaleStatus(sale);
+            const color = status === 'Pagado' ? '#f43f5e' : status === 'Abonado' ? '#2563eb' : status === 'Separado' ? '#f59e0b' : null;
+            if (!color) continue;
+            const column = number % 10;
+            const row = Math.floor(number / 10);
+            ctx.fillStyle = color;
+            ctx.fillRect(left + column * cellWidth + 2, top + row * cellHeight + 2, cellWidth - 4, cellHeight - 4);
+        }
+        ctx.globalAlpha = 1;
+    }
+    return canvas.toDataURL('image/jpeg', 0.94);
+}
+
 window.exportPDF = async function() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    
-    // Check if an image is selected
-    const coverInput = document.getElementById('cover-image');
-    
-    if (coverInput && coverInput.files && coverInput.files[0]) {
-        const file = coverInput.files[0];
-        const imgData = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.readAsDataURL(file);
-        });
+
+    if (currentCoverImage) {
+        const imgData = await createMarkedCoverImage();
         
         const pdfWidth = doc.internal.pageSize.getWidth();
         const pdfHeight = doc.internal.pageSize.getHeight();
@@ -1814,7 +1931,7 @@ window.exportPDF = async function() {
         const xOffset = (pdfWidth - finalWidth) / 2;
         const yOffset = (pdfHeight - finalHeight) / 2;
         
-        // Use JPEG or PNG based on file type. We use 'JPEG' as fallback wrapper.
+        // La portada se normaliza a JPEG al guardarla; así también se incrustan los marcadores.
         doc.addImage(imgData, 'JPEG', xOffset, yOffset, finalWidth, finalHeight);
     } else {
         // Página 1: Portada por Defecto
